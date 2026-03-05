@@ -1,5 +1,7 @@
 package com.demo.talentbridge.dto.response;
 
+import com.demo.talentbridge.enums.SkillLevel;
+import com.demo.talentbridge.enums.SkillName;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -10,7 +12,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class SkillResponse {
-    private Long id;
-    private String name;
-    private String level;
+    private SkillName skillName;
+    private String displayName;
+    private SkillLevel level;
 }

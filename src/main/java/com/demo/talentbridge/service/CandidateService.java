@@ -1,10 +1,12 @@
 package com.demo.talentbridge.service;
 
 import com.demo.talentbridge.dto.request.CandidateProfileRequest;
+import com.demo.talentbridge.dto.request.CandidateSkillRequest;
 import com.demo.talentbridge.dto.request.EducationRequest;
 import com.demo.talentbridge.dto.request.WorkExperienceRequest;
 import com.demo.talentbridge.dto.response.CandidateProfileResponse;
 import com.demo.talentbridge.dto.response.EducationResponse;
+import com.demo.talentbridge.dto.response.SkillResponse;
 import com.demo.talentbridge.dto.response.WorkExperienceResponse;
 
 import java.util.List;
@@ -23,6 +25,8 @@ public interface CandidateService {
     void deleteWorkExperience(Long userId, Long expId);
     List<WorkExperienceResponse> getWorkExperiences(Long userId);
 
-    void addSkill(Long userId, Long skillId, String level);
-    void removeSkill(Long userId, Long skillId);
+    SkillResponse addSkill(Long userId, CandidateSkillRequest request);
+    SkillResponse updateSkill(Long userId, CandidateSkillRequest request);
+    void removeSkill(Long userId, String skillName);
+    List<SkillResponse> getSkills(Long userId);
 }

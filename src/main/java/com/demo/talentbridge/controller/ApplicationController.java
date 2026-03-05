@@ -6,6 +6,7 @@ import com.demo.talentbridge.dto.response.ApiResponse;
 import com.demo.talentbridge.dto.response.ApplicationResponse;
 import com.demo.talentbridge.entity.User;
 import com.demo.talentbridge.service.ApplicationService;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -16,6 +17,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/applications")
+@SecurityRequirement(name = "bearerAuth")
 public class ApplicationController {
     @Autowired private ApplicationService applicationService;
 

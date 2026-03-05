@@ -5,6 +5,7 @@ import com.demo.talentbridge.dto.response.ApiResponse;
 import com.demo.talentbridge.dto.response.EmployerProfileResponse;
 import com.demo.talentbridge.entity.User;
 import com.demo.talentbridge.service.EmployerService;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -13,6 +14,8 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/v1/employers")
+@SecurityRequirement(name = "bearerAuth")
+
 public class EmployerController {
     @Autowired private EmployerService employerService;
 

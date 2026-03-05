@@ -4,13 +4,15 @@ import com.demo.talentbridge.dto.request.JobPostRequest;
 import com.demo.talentbridge.dto.response.ApiResponse;
 import com.demo.talentbridge.dto.response.JobPostResponse;
 import com.demo.talentbridge.entity.User;
+import com.demo.talentbridge.enums.SkillName;
 import com.demo.talentbridge.service.JobPostService;
-import com.demo.talentbridge.service.NotificationService;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -19,25 +21,33 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/jobs")
+@SecurityRequirement(name = "bearerAuth")
+
 public class JobPostController {
-    @Autowired private JobPostService jobPostService;
-    @Autowired private NotificationService notificationService;
+
+    @Autowired
+    private JobPostService jobPostService;
 
     @PostMapping
     public ResponseEntity<ApiResponse<JobPostResponse>> createJob(
-            @AuthenticationPrincipal User user, @Valid @RequestBody JobPostRequest request) {
+            @AuthenticationPrincipal User user,
+            @Valid @RequestBody JobPostRequest request) {
         JobPostResponse job = jobPostService.createJob(user.getId(), request);
         return ResponseEntity.ok(ApiResponse.success("Job created, pending approval", job));
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<JobPostResponse>> updateJob(
-            @AuthenticationPrincipal User user, @PathVariable Long id, @Valid @RequestBody JobPostRequest request) {
-        return ResponseEntity.ok(ApiResponse.success(jobPostService.updateJob(user.getId(), id, request)));
+            @AuthenticationPrincipal User user,
+            @PathVariable Long id,
+            @Valid @RequestBody JobPostRequest request) {
+        return ResponseEntity.ok(ApiResponse.success("Job updated, pending re-approval", jobPostService.updateJob(user.getId(), id, request)));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse<Void>> closeJob(@AuthenticationPrincipal User user, @PathVariable Long id) {
+    public ResponseEntity<ApiResponse<Void>> closeJob(
+            @AuthenticationPrincipal User user,
+            @PathVariable Long id) {
         jobPostService.closeJob(user.getId(), id);
         return ResponseEntity.ok(ApiResponse.success("Job closed", null));
     }
@@ -50,8 +60,11 @@ public class JobPostController {
     @GetMapping
     public ResponseEntity<ApiResponse<Page<JobPostResponse>>> getActiveJobs(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
-        Pageable pageable = PageRequest.of(page, size);
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "postedAt") String sortBy,
+            @RequestParam(defaultValue = "desc") String sortDir) {
+        Sort sort = sortDir.equalsIgnoreCase("asc") ? Sort.by(sortBy).ascending() : Sort.by(sortBy).descending();
+        Pageable pageable = PageRequest.of(page, size, sort);
         return ResponseEntity.ok(ApiResponse.success(jobPostService.getAllActiveJobs(pageable)));
     }
 
@@ -60,7 +73,8 @@ public class JobPostController {
             @RequestParam String keyword,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
-        return ResponseEntity.ok(ApiResponse.success(jobPostService.searchJobs(keyword, PageRequest.of(page, size))));
+        return ResponseEntity.ok(ApiResponse.success(
+                jobPostService.searchJobs(keyword, PageRequest.of(page, size))));
     }
 
     @GetMapping("/category/{categoryId}")
@@ -68,11 +82,22 @@ public class JobPostController {
             @PathVariable Long categoryId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
-        return ResponseEntity.ok(ApiResponse.success(jobPostService.getJobsByCategory(categoryId, PageRequest.of(page, size))));
+        return ResponseEntity.ok(ApiResponse.success(
+                jobPostService.getJobsByCategory(categoryId, PageRequest.of(page, size))));
+    }
+
+    @GetMapping("/by-skills")
+    public ResponseEntity<ApiResponse<Page<JobPostResponse>>> getBySkills(
+            @RequestParam List<SkillName> skills,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return ResponseEntity.ok(ApiResponse.success(
+                jobPostService.getJobsBySkills(skills, PageRequest.of(page, size))));
     }
 
     @GetMapping("/my-jobs")
-    public ResponseEntity<ApiResponse<List<JobPostResponse>>> getMyJobs(@AuthenticationPrincipal User user) {
+    public ResponseEntity<ApiResponse<List<JobPostResponse>>> getMyJobs(
+            @AuthenticationPrincipal User user) {
         return ResponseEntity.ok(ApiResponse.success(jobPostService.getJobsByEmployer(user.getId())));
     }
 
@@ -81,6 +106,7 @@ public class JobPostController {
             @AuthenticationPrincipal User user,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return ResponseEntity.ok(ApiResponse.success(jobPostService.getJobFeed(user.getId(), PageRequest.of(page, size))));
+        return ResponseEntity.ok(ApiResponse.success(
+                jobPostService.getJobFeed(user.getId(), PageRequest.of(page, size))));
     }
 }

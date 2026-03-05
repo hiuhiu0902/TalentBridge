@@ -6,7 +6,7 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 @Data
-public class JobSkillRequest {
+public class CandidateSkillRequest {
 
     @NotNull(message = "Skill name is required")
     private SkillName skillName;

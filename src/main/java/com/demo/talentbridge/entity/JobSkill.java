@@ -1,10 +1,13 @@
 package com.demo.talentbridge.entity;
 
+import com.demo.talentbridge.enums.SkillLevel;
+import com.demo.talentbridge.enums.SkillName;
 import jakarta.persistence.*;
 import lombok.*;
 
 @Entity
-@Table(name = "job_skills")
+@Table(name = "job_skills",
+        uniqueConstraints = @UniqueConstraint(columnNames = {"job_post_id", "skill_name"}))
 @Data
 @Builder
 @NoArgsConstructor
@@ -19,10 +22,11 @@ public class JobSkill {
     @JoinColumn(name = "job_post_id", nullable = false)
     private JobPost jobPost;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "skill_id", nullable = false)
-    private Skill skill;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "skill_name", nullable = false, length = 100)
+    private SkillName skillName;
 
+    @Enumerated(EnumType.STRING)
     @Column(length = 30)
-    private String level;
+    private SkillLevel level;
 }

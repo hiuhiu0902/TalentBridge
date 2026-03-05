@@ -34,4 +34,5 @@ public class JobPostResponse {
     private String categoryName;
     private List<SkillResponse> skills;
     private Integer applicationCount;
+    private boolean savedByCurrentUser;
 }

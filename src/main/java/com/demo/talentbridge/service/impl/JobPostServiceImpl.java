@@ -6,6 +6,8 @@ import com.demo.talentbridge.dto.response.JobPostResponse;
 import com.demo.talentbridge.dto.response.SkillResponse;
 import com.demo.talentbridge.entity.*;
 import com.demo.talentbridge.enums.JobStatus;
+import com.demo.talentbridge.enums.NotificationType;
+import com.demo.talentbridge.enums.SkillName;
 import com.demo.talentbridge.exception.BadRequestException;
 import com.demo.talentbridge.exception.ResourceNotFoundException;
 import com.demo.talentbridge.exception.UnauthorizedException;
@@ -18,6 +20,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -35,9 +38,6 @@ public class JobPostServiceImpl implements JobPostService {
     private CategoryRepository categoryRepository;
 
     @Autowired
-    private SkillRepository skillRepository;
-
-    @Autowired
     private ApplicationRepository applicationRepository;
 
     @Autowired
@@ -49,6 +49,8 @@ public class JobPostServiceImpl implements JobPostService {
         Employer employer = employerRepository.findByUserId(employerUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("Employer not found for user: " + employerUserId));
 
+        validateSalaryRange(request);
+
         JobPost jobPost = JobPost.builder()
                 .employer(employer)
                 .title(request.getTitle())
@@ -59,7 +61,7 @@ public class JobPostServiceImpl implements JobPostService {
                 .jobType(request.getJobType())
                 .experienceLevel(request.getExperienceLevel())
                 .expiredAt(request.getExpiredAt())
-                .status(JobStatus.PENDING_APPROVAL) // BR5: always PENDING_APPROVAL
+                .status(JobStatus.PENDING_APPROVAL)
                 .build();
 
         if (request.getCategoryId() != null) {
@@ -68,25 +70,12 @@ public class JobPostServiceImpl implements JobPostService {
             jobPost.setCategory(category);
         }
 
-        jobPost = jobPostRepository.save(jobPost);
-
-        // Add skills
         if (request.getSkills() != null && !request.getSkills().isEmpty()) {
-            List<JobSkill> jobSkills = new ArrayList<>();
-            for (JobSkillRequest skillReq : request.getSkills()) {
-                Skill skill = skillRepository.findById(skillReq.getSkillId())
-                        .orElseThrow(() -> new ResourceNotFoundException("Skill", "id", skillReq.getSkillId()));
-                JobSkill jobSkill = JobSkill.builder()
-                        .jobPost(jobPost)
-                        .skill(skill)
-                        .level(skillReq.getLevel())
-                        .build();
-                jobSkills.add(jobSkill);
-            }
+            List<JobSkill> jobSkills = buildJobSkills(request.getSkills(), jobPost);
             jobPost.setJobSkills(jobSkills);
-            jobPost = jobPostRepository.save(jobPost);
         }
 
+        jobPost = jobPostRepository.save(jobPost);
         return mapToResponse(jobPost);
     }
 
@@ -99,7 +88,6 @@ public class JobPostServiceImpl implements JobPostService {
         JobPost jobPost = jobPostRepository.findById(jobId)
                 .orElseThrow(() -> new ResourceNotFoundException("JobPost", "id", jobId));
 
-        // BR12: Employer can only edit their own jobs
         if (!jobPost.getEmployer().getId().equals(employer.getId())) {
             throw new UnauthorizedException("You don't have permission to update this job post");
         }
@@ -107,6 +95,8 @@ public class JobPostServiceImpl implements JobPostService {
         if (jobPost.getStatus() == JobStatus.CLOSED) {
             throw new BadRequestException("Cannot update a closed job post");
         }
+
+        validateSalaryRange(request);
 
         jobPost.setTitle(request.getTitle());
         jobPost.setDescription(request.getDescription());
@@ -123,21 +113,14 @@ public class JobPostServiceImpl implements JobPostService {
             Category category = categoryRepository.findById(request.getCategoryId())
                     .orElseThrow(() -> new ResourceNotFoundException("Category", "id", request.getCategoryId()));
             jobPost.setCategory(category);
+        } else {
+            jobPost.setCategory(null);
         }
 
-        // Update skills
         if (request.getSkills() != null) {
             jobPost.getJobSkills().clear();
-            for (JobSkillRequest skillReq : request.getSkills()) {
-                Skill skill = skillRepository.findById(skillReq.getSkillId())
-                        .orElseThrow(() -> new ResourceNotFoundException("Skill", "id", skillReq.getSkillId()));
-                JobSkill jobSkill = JobSkill.builder()
-                        .jobPost(jobPost)
-                        .skill(skill)
-                        .level(skillReq.getLevel())
-                        .build();
-                jobPost.getJobSkills().add(jobSkill);
-            }
+            List<JobSkill> newSkills = buildJobSkills(request.getSkills(), jobPost);
+            jobPost.getJobSkills().addAll(newSkills);
         }
 
         jobPost = jobPostRepository.save(jobPost);
@@ -153,12 +136,14 @@ public class JobPostServiceImpl implements JobPostService {
         JobPost jobPost = jobPostRepository.findById(jobId)
                 .orElseThrow(() -> new ResourceNotFoundException("JobPost", "id", jobId));
 
-        // BR12: Employer can only close their own jobs
         if (!jobPost.getEmployer().getId().equals(employer.getId())) {
             throw new UnauthorizedException("You don't have permission to close this job post");
         }
 
-        // BR13: Soft delete - set status to CLOSED
+        if (jobPost.getStatus() == JobStatus.CLOSED) {
+            throw new BadRequestException("Job post is already closed");
+        }
+
         jobPost.setStatus(JobStatus.CLOSED);
         jobPostRepository.save(jobPost);
     }
@@ -184,8 +169,19 @@ public class JobPostServiceImpl implements JobPostService {
 
     @Override
     public Page<JobPostResponse> getJobsByCategory(Long categoryId, Pageable pageable) {
+        // Validate category exists
+        categoryRepository.findById(categoryId)
+                .orElseThrow(() -> new ResourceNotFoundException("Category", "id", categoryId));
         return jobPostRepository.findByCategoryId(categoryId, pageable)
                 .map(this::mapToResponse);
+    }
+
+    @Override
+    public Page<JobPostResponse> getJobsBySkills(List<SkillName> skillNames, Pageable pageable) {
+        if (skillNames == null || skillNames.isEmpty()) {
+            return jobPostRepository.findByStatus(JobStatus.ACTIVE, pageable).map(this::mapToResponse);
+        }
+        return jobPostRepository.findBySkillNames(skillNames, pageable).map(this::mapToResponse);
     }
 
     @Override
@@ -222,11 +218,86 @@ public class JobPostServiceImpl implements JobPostService {
                 .collect(Collectors.toList());
     }
 
+    @Override
+    @Transactional
+    public JobPostResponse approveJob(Long jobId) {
+        JobPost job = jobPostRepository.findById(jobId)
+                .orElseThrow(() -> new ResourceNotFoundException("JobPost", "id", jobId));
+
+        if (job.getStatus() != JobStatus.PENDING_APPROVAL) {
+            throw new BadRequestException("Job is not in PENDING_APPROVAL status");
+        }
+
+        job.setStatus(JobStatus.ACTIVE);
+        job.setRejectionReason(null);
+        job = jobPostRepository.save(job);
+
+        // Notify followers of new job
+        notificationService.notifyFollowersOfNewJob(
+                job.getEmployer().getUser().getId(), job.getId(), job.getTitle());
+
+        // Notify employer
+        notificationService.createNotification(
+                job.getEmployer().getUser(),
+                "Job Post Approved",
+                "Your job post \"" + job.getTitle() + "\" has been approved and is now active.",
+                NotificationType.SYSTEM,
+                "/jobs/" + job.getId()
+        );
+
+        return mapToResponse(job);
+    }
+
+    @Override
+    @Transactional
+    public JobPostResponse rejectJob(Long jobId, String rejectionReason) {
+        JobPost job = jobPostRepository.findById(jobId)
+                .orElseThrow(() -> new ResourceNotFoundException("JobPost", "id", jobId));
+
+        if (job.getStatus() != JobStatus.PENDING_APPROVAL) {
+            throw new BadRequestException("Job is not in PENDING_APPROVAL status");
+        }
+
+        job.setStatus(JobStatus.REJECTED);
+        job.setRejectionReason(rejectionReason);
+        job = jobPostRepository.save(job);
+
+        // Notify employer
+        notificationService.createNotification(
+                job.getEmployer().getUser(),
+                "Job Post Rejected",
+                "Your job post \"" + job.getTitle() + "\" has been rejected. Reason: " + rejectionReason,
+                NotificationType.SYSTEM,
+                "/jobs/" + job.getId()
+        );
+
+        return mapToResponse(job);
+    }
+
+    // ─── Helpers ────────────────────────────────────────────────────────────────
+
+    private List<JobSkill> buildJobSkills(List<JobSkillRequest> skillRequests, JobPost jobPost) {
+        return skillRequests.stream()
+                .map(req -> JobSkill.builder()
+                        .jobPost(jobPost)
+                        .skillName(req.getSkillName())
+                        .level(req.getLevel())
+                        .build())
+                .collect(Collectors.toList());
+    }
+
+    private void validateSalaryRange(JobPostRequest request) {
+        if (request.getSalaryMin() != null && request.getSalaryMax() != null
+                && request.getSalaryMin().compareTo(request.getSalaryMax()) > 0) {
+            throw new BadRequestException("Salary min cannot be greater than salary max");
+        }
+    }
+
     private JobPostResponse mapToResponse(JobPost jobPost) {
         List<SkillResponse> skills = jobPost.getJobSkills().stream()
                 .map(js -> SkillResponse.builder()
-                        .id(js.getSkill().getId())
-                        .name(js.getSkill().getName())
+                        .skillName(js.getSkillName())
+                        .displayName(formatSkillName(js.getSkillName()))
                         .level(js.getLevel())
                         .build())
                 .collect(Collectors.toList());
@@ -254,5 +325,55 @@ public class JobPostServiceImpl implements JobPostService {
                 .skills(skills)
                 .applicationCount((int) appCount)
                 .build();
+    }
+
+    /**
+     * Converts enum name to a human-readable display name.
+     * e.g. SPRING_BOOT -> "Spring Boot", NODEJS -> "Node.js"
+     */
+    private String formatSkillName(SkillName skillName) {
+        if (skillName == null) return null;
+        return switch (skillName) {
+            case NODEJS -> "Node.js";
+            case NEXTJS -> "Next.js";
+            case NUXTJS -> "Nuxt.js";
+            case NESTJS -> "NestJS";
+            case CSHARP -> "C#";
+            case CPP -> "C++";
+            case GRAPHQL -> "GraphQL";
+            case GRPC -> "gRPC";
+            case GITHUB_ACTIONS -> "GitHub Actions";
+            case GITLAB_CI -> "GitLab CI";
+            case TAILWIND_CSS -> "Tailwind CSS";
+            case SPRING_BOOT -> "Spring Boot";
+            case SPRING_FRAMEWORK -> "Spring Framework";
+            case REACT_NATIVE -> "React Native";
+            case ASP_NET -> "ASP.NET";
+            case MACHINE_LEARNING -> "Machine Learning";
+            case DEEP_LEARNING -> "Deep Learning";
+            case DATA_SCIENCE -> "Data Science";
+            case DATA_ANALYSIS -> "Data Analysis";
+            case POWER_BI -> "Power BI";
+            case UI_UX_DESIGN -> "UI/UX Design";
+            case REST_API -> "REST API";
+            case PROJECT_MANAGEMENT -> "Project Management";
+            case BUSINESS_ANALYSIS -> "Business Analysis";
+            case PROBLEM_SOLVING -> "Problem Solving";
+            default -> capitalize(skillName.name().replace("_", " "));
+        };
+    }
+
+    private String capitalize(String s) {
+        if (s == null || s.isEmpty()) return s;
+        String[] words = s.split(" ");
+        StringBuilder sb = new StringBuilder();
+        for (String word : words) {
+            if (!word.isEmpty()) {
+                sb.append(Character.toUpperCase(word.charAt(0)))
+                  .append(word.substring(1).toLowerCase())
+                  .append(" ");
+            }
+        }
+        return sb.toString().trim();
     }
 }

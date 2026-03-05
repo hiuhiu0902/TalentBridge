@@ -1,6 +1,7 @@
 package com.demo.talentbridge.service.impl;
 
 import com.demo.talentbridge.dto.request.CandidateProfileRequest;
+import com.demo.talentbridge.dto.request.CandidateSkillRequest;
 import com.demo.talentbridge.dto.request.EducationRequest;
 import com.demo.talentbridge.dto.request.WorkExperienceRequest;
 import com.demo.talentbridge.dto.response.CandidateProfileResponse;
@@ -8,6 +9,9 @@ import com.demo.talentbridge.dto.response.EducationResponse;
 import com.demo.talentbridge.dto.response.SkillResponse;
 import com.demo.talentbridge.dto.response.WorkExperienceResponse;
 import com.demo.talentbridge.entity.*;
+import com.demo.talentbridge.enums.SkillName;
+import com.demo.talentbridge.exception.BadRequestException;
+import com.demo.talentbridge.exception.DuplicateResourceException;
 import com.demo.talentbridge.exception.ResourceNotFoundException;
 import com.demo.talentbridge.exception.UnauthorizedException;
 import com.demo.talentbridge.repository.*;
@@ -34,8 +38,7 @@ public class CandidateServiceImpl implements CandidateService {
     @Autowired
     private CandidateSkillRepository candidateSkillRepository;
 
-    @Autowired
-    private SkillRepository skillRepository;
+    // ─── Profile ────────────────────────────────────────────────────────────────
 
     @Override
     public CandidateProfileResponse getProfile(Long userId) {
@@ -58,6 +61,8 @@ public class CandidateServiceImpl implements CandidateService {
         candidate = candidateRepository.save(candidate);
         return mapToResponse(candidate);
     }
+
+    // ─── Education ──────────────────────────────────────────────────────────────
 
     @Override
     @Transactional
@@ -119,17 +124,22 @@ public class CandidateServiceImpl implements CandidateService {
                 .collect(Collectors.toList());
     }
 
+    // ─── Work Experience ────────────────────────────────────────────────────────
+
     @Override
     @Transactional
     public WorkExperienceResponse addWorkExperience(Long userId, WorkExperienceRequest request) {
         Candidate candidate = candidateRepository.findByUserId(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Candidate not found for user: " + userId));
+        if (Boolean.TRUE.equals(request.getCurrentlyWorking()) && request.getEndDate() != null) {
+            throw new BadRequestException("End date must be null when currently working");
+        }
         WorkExperience exp = WorkExperience.builder()
                 .candidate(candidate)
                 .company(request.getCompany())
                 .position(request.getPosition())
                 .startDate(request.getStartDate())
-                .endDate(request.getEndDate())
+                .endDate(Boolean.TRUE.equals(request.getCurrentlyWorking()) ? null : request.getEndDate())
                 .description(request.getDescription())
                 .currentlyWorking(request.getCurrentlyWorking())
                 .build();
@@ -147,10 +157,13 @@ public class CandidateServiceImpl implements CandidateService {
         if (!exp.getCandidate().getId().equals(candidate.getId())) {
             throw new UnauthorizedException("You don't have permission to update this work experience");
         }
+        if (Boolean.TRUE.equals(request.getCurrentlyWorking()) && request.getEndDate() != null) {
+            throw new BadRequestException("End date must be null when currently working");
+        }
         exp.setCompany(request.getCompany());
         exp.setPosition(request.getPosition());
         exp.setStartDate(request.getStartDate());
-        exp.setEndDate(request.getEndDate());
+        exp.setEndDate(Boolean.TRUE.equals(request.getCurrentlyWorking()) ? null : request.getEndDate());
         exp.setDescription(request.getDescription());
         exp.setCurrentlyWorking(request.getCurrentlyWorking());
         exp = workExperienceRepository.save(exp);
@@ -179,32 +192,72 @@ public class CandidateServiceImpl implements CandidateService {
                 .collect(Collectors.toList());
     }
 
+    // ─── Skills ─────────────────────────────────────────────────────────────────
+
     @Override
     @Transactional
-    public void addSkill(Long userId, Long skillId, String level) {
+    public SkillResponse addSkill(Long userId, CandidateSkillRequest request) {
         Candidate candidate = candidateRepository.findByUserId(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Candidate not found for user: " + userId));
-        Skill skill = skillRepository.findById(skillId)
-                .orElseThrow(() -> new ResourceNotFoundException("Skill", "id", skillId));
+
+        if (candidateSkillRepository.existsByCandidateIdAndSkillName(candidate.getId(), request.getSkillName())) {
+            throw new DuplicateResourceException("Skill already added: " + request.getSkillName());
+        }
+
         CandidateSkill cs = CandidateSkill.builder()
                 .candidate(candidate)
-                .skill(skill)
-                .level(level)
+                .skillName(request.getSkillName())
+                .level(request.getLevel())
                 .build();
-        candidateSkillRepository.save(cs);
+        cs = candidateSkillRepository.save(cs);
+        return mapSkillToResponse(cs);
     }
 
     @Override
     @Transactional
-    public void removeSkill(Long userId, Long skillId) {
+    public SkillResponse updateSkill(Long userId, CandidateSkillRequest request) {
         Candidate candidate = candidateRepository.findByUserId(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Candidate not found for user: " + userId));
-        List<CandidateSkill> skills = candidateSkillRepository.findByCandidateId(candidate.getId());
-        skills.stream()
-                .filter(cs -> cs.getSkill().getId().equals(skillId))
-                .findFirst()
-                .ifPresent(candidateSkillRepository::delete);
+
+        CandidateSkill cs = candidateSkillRepository
+                .findByCandidateIdAndSkillName(candidate.getId(), request.getSkillName())
+                .orElseThrow(() -> new ResourceNotFoundException("Skill not found: " + request.getSkillName()));
+
+        cs.setLevel(request.getLevel());
+        cs = candidateSkillRepository.save(cs);
+        return mapSkillToResponse(cs);
     }
+
+    @Override
+    @Transactional
+    public void removeSkill(Long userId, String skillNameStr) {
+        Candidate candidate = candidateRepository.findByUserId(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Candidate not found for user: " + userId));
+
+        SkillName skillName;
+        try {
+            skillName = SkillName.valueOf(skillNameStr.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new BadRequestException("Invalid skill name: " + skillNameStr);
+        }
+
+        CandidateSkill cs = candidateSkillRepository
+                .findByCandidateIdAndSkillName(candidate.getId(), skillName)
+                .orElseThrow(() -> new ResourceNotFoundException("Skill not found: " + skillNameStr));
+
+        candidateSkillRepository.delete(cs);
+    }
+
+    @Override
+    public List<SkillResponse> getSkills(Long userId) {
+        Candidate candidate = candidateRepository.findByUserId(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Candidate not found for user: " + userId));
+        return candidateSkillRepository.findByCandidateId(candidate.getId()).stream()
+                .map(this::mapSkillToResponse)
+                .collect(Collectors.toList());
+    }
+
+    // ─── Mappers ────────────────────────────────────────────────────────────────
 
     private CandidateProfileResponse mapToResponse(Candidate candidate) {
         List<EducationResponse> educations = educationRepository.findByCandidateId(candidate.getId())
@@ -212,11 +265,7 @@ public class CandidateServiceImpl implements CandidateService {
         List<WorkExperienceResponse> workExps = workExperienceRepository.findByCandidateId(candidate.getId())
                 .stream().map(this::mapWorkExpToResponse).collect(Collectors.toList());
         List<SkillResponse> skills = candidateSkillRepository.findByCandidateId(candidate.getId())
-                .stream().map(cs -> SkillResponse.builder()
-                        .id(cs.getSkill().getId())
-                        .name(cs.getSkill().getName())
-                        .level(cs.getLevel())
-                        .build()).collect(Collectors.toList());
+                .stream().map(this::mapSkillToResponse).collect(Collectors.toList());
 
         return CandidateProfileResponse.builder()
                 .id(candidate.getId())
@@ -254,6 +303,14 @@ public class CandidateServiceImpl implements CandidateService {
                 .endDate(w.getEndDate())
                 .description(w.getDescription())
                 .currentlyWorking(w.getCurrentlyWorking())
+                .build();
+    }
+
+    private SkillResponse mapSkillToResponse(CandidateSkill cs) {
+        return SkillResponse.builder()
+                .skillName(cs.getSkillName())
+                .displayName(cs.getSkillName() != null ? cs.getSkillName().name() : null)
+                .level(cs.getLevel())
                 .build();
     }
 }

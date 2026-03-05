@@ -2,6 +2,7 @@ package com.demo.talentbridge.repository;
 
 import com.demo.talentbridge.entity.JobPost;
 import com.demo.talentbridge.enums.JobStatus;
+import com.demo.talentbridge.enums.SkillName;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -22,11 +23,18 @@ public interface JobPostRepository extends JpaRepository<JobPost, Long> {
 
     @Query("SELECT j FROM JobPost j WHERE j.status = 'ACTIVE' AND " +
            "(LOWER(j.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
-           "LOWER(j.description) LIKE LOWER(CONCAT('%', :keyword, '%')))")
+           "LOWER(j.description) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+           "LOWER(j.employer.companyName) LIKE LOWER(CONCAT('%', :keyword, '%')))")
     Page<JobPost> searchByKeyword(@Param("keyword") String keyword, Pageable pageable);
 
     @Query("SELECT j FROM JobPost j WHERE j.status = 'ACTIVE' AND j.category.id = :categoryId")
     Page<JobPost> findByCategoryId(@Param("categoryId") Long categoryId, Pageable pageable);
+
+    @Query("SELECT j FROM JobPost j WHERE j.status = 'ACTIVE' AND j.location LIKE LOWER(CONCAT('%', :location, '%'))")
+    Page<JobPost> findByLocation(@Param("location") String location, Pageable pageable);
+
+    @Query("SELECT DISTINCT j FROM JobPost j JOIN j.jobSkills js WHERE j.status = 'ACTIVE' AND js.skillName IN :skillNames")
+    Page<JobPost> findBySkillNames(@Param("skillNames") List<SkillName> skillNames, Pageable pageable);
 
     // Feed: Jobs from followed employers first, then other active jobs
     @Query("SELECT j FROM JobPost j WHERE j.status = 'ACTIVE' AND j.employer.id IN " +
@@ -38,4 +46,8 @@ public interface JobPostRepository extends JpaRepository<JobPost, Long> {
     Page<JobPost> findActiveFeed(Pageable pageable);
 
     boolean existsByIdAndEmployerId(Long id, Long employerId);
+
+    long countByEmployerId(Long employerId);
+
+    long countByStatus(JobStatus status);
 }

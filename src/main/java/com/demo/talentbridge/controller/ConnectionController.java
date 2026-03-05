@@ -4,6 +4,7 @@ import com.demo.talentbridge.dto.response.ApiResponse;
 import com.demo.talentbridge.dto.response.FollowResponse;
 import com.demo.talentbridge.entity.User;
 import com.demo.talentbridge.service.FollowService;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -13,6 +14,8 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/connections")
+@SecurityRequirement(name = "bearerAuth")
+
 public class ConnectionController {
     @Autowired private FollowService followService;
 
