@@ -50,6 +50,22 @@ public class EmployerServiceImpl implements EmployerService {
         return mapToResponse(employer);
     }
 
+    @Override
+    @Transactional
+    public EmployerProfileResponse createProfile(Long userId, EmployerProfileRequest request) {
+        Employer employer = employerRepository.findByUserId(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Employer profile not found for user: " + userId));
+
+        if (request.getWebsite() != null) employer.setWebsite(request.getWebsite());
+        if (request.getDescription() != null) employer.setDescription(request.getDescription());
+        if (request.getLogoUrl() != null) employer.setLogoUrl(request.getLogoUrl());
+        if (request.getIndustry() != null) employer.setIndustry(request.getIndustry());
+        if (request.getCompanySize() != null) employer.setCompanySize(request.getCompanySize());
+        if (request.getAddress() != null) employer.setAddress(request.getAddress());
+        employer = employerRepository.save(employer);
+        return mapToResponse(employer);
+    }
+
     private EmployerProfileResponse mapToResponse(Employer employer) {
         long followerCount = followConnectionRepository.countByFollowedId(employer.getUser().getId());
         return EmployerProfileResponse.builder()
@@ -63,6 +79,7 @@ public class EmployerServiceImpl implements EmployerService {
                 .companySize(employer.getCompanySize())
                 .address(employer.getAddress())
                 .email(employer.getUser().getEmail())
+                .name(employer.getUser().getFullName())
                 .followerCount(followerCount)
                 .build();
     }
