@@ -6,6 +6,7 @@ import com.demo.talentbridge.dto.response.ApiResponse;
 import com.demo.talentbridge.dto.response.AuthResponse;
 import com.demo.talentbridge.dto.response.UserResponse;
 import com.demo.talentbridge.service.AuthService;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -28,6 +29,7 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.success("Login successful", authService.login(request)));
     }
 
+    @SecurityRequirement(name = "bearerAuth")
     @GetMapping("/me")
     public ResponseEntity<ApiResponse<UserResponse>> getCurrentUser(@AuthenticationPrincipal UserDetails userDetails) {
         return ResponseEntity.ok(ApiResponse.success(authService.getCurrentUser(userDetails.getUsername())));

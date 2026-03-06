@@ -19,5 +19,6 @@ public class EmployerProfileResponse {
     private String companySize;
     private String address;
     private String email;
+    private String name;
     private Long followerCount;
 }

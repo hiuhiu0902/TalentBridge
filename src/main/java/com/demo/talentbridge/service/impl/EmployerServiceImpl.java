@@ -54,6 +54,7 @@ public class EmployerServiceImpl implements EmployerService {
         long followerCount = followConnectionRepository.countByFollowedId(employer.getUser().getId());
         return EmployerProfileResponse.builder()
                 .id(employer.getId())
+                .name(employer.getUser().getFullName())
                 .companyName(employer.getCompanyName())
                 .website(employer.getWebsite())
                 .description(employer.getDescription())

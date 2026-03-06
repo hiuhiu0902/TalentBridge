@@ -88,7 +88,7 @@ public class ApplicationServiceImpl implements ApplicationService {
         notificationService.createNotification(
                 jobPost.getEmployer().getUser(),
                 "New Application Received",
-                candidate.getFullName() + " applied for " + jobPost.getTitle(),
+                candidate.getUser().getFullName() + " applied for " + jobPost.getTitle(),
                 NotificationType.APPLICATION_STATUS_CHANGED,
                 "/applications/" + application.getId()
         );
@@ -232,7 +232,7 @@ public class ApplicationServiceImpl implements ApplicationService {
                 .jobTitle(application.getJobPost().getTitle())
                 .companyName(application.getJobPost().getEmployer().getCompanyName())
                 .candidateId(application.getCandidate().getId())
-                .candidateName(application.getCandidate().getFullName())
+                .candidateName(application.getCandidate().getUser().getFullName())
                 .candidateEmail(application.getCandidate().getUser().getEmail())
                 .histories(histories)
                 .build();
