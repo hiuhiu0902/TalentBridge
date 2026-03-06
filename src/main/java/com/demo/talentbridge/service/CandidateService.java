@@ -1,9 +1,6 @@
 package com.demo.talentbridge.service;
 
-import com.demo.talentbridge.dto.request.CandidateProfileRequest;
-import com.demo.talentbridge.dto.request.CandidateSkillRequest;
-import com.demo.talentbridge.dto.request.EducationRequest;
-import com.demo.talentbridge.dto.request.WorkExperienceRequest;
+import com.demo.talentbridge.dto.request.*;
 import com.demo.talentbridge.dto.response.CandidateProfileResponse;
 import com.demo.talentbridge.dto.response.EducationResponse;
 import com.demo.talentbridge.dto.response.SkillResponse;
@@ -14,6 +11,8 @@ import java.util.List;
 public interface CandidateService {
     CandidateProfileResponse getProfile(Long userId);
     CandidateProfileResponse updateProfile(Long userId, CandidateProfileRequest request);
+    CandidateProfileResponse createProfile(Long userId, CandidateProfileRequest request);
+
 
     EducationResponse addEducation(Long userId, EducationRequest request);
     EducationResponse updateEducation(Long userId, Long educationId, EducationRequest request);

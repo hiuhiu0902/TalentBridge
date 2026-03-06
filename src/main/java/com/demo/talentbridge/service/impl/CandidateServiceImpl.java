@@ -1,9 +1,6 @@
 package com.demo.talentbridge.service.impl;
 
-import com.demo.talentbridge.dto.request.CandidateProfileRequest;
-import com.demo.talentbridge.dto.request.CandidateSkillRequest;
-import com.demo.talentbridge.dto.request.EducationRequest;
-import com.demo.talentbridge.dto.request.WorkExperienceRequest;
+import com.demo.talentbridge.dto.request.*;
 import com.demo.talentbridge.dto.response.CandidateProfileResponse;
 import com.demo.talentbridge.dto.response.EducationResponse;
 import com.demo.talentbridge.dto.response.SkillResponse;
@@ -37,6 +34,8 @@ public class CandidateServiceImpl implements CandidateService {
 
     @Autowired
     private CandidateSkillRepository candidateSkillRepository;
+    @Autowired
+    private UserRepository userRepository;
 
     // ─── Profile ────────────────────────────────────────────────────────────────
 
@@ -61,6 +60,24 @@ public class CandidateServiceImpl implements CandidateService {
         candidate = candidateRepository.save(candidate);
         return mapToResponse(candidate);
     }
+
+    @Override
+    @Transactional
+    public CandidateProfileResponse createProfile(Long userId, CandidateProfileRequest request) {
+        Candidate candidate = candidateRepository.findByUserId(userId)
+                .orElseThrow(() -> new RuntimeException("Candidate not found"));
+
+        if (request.getPhone() != null) candidate.setPhone(request.getPhone());
+        if (request.getAddress() != null) candidate.setAddress(request.getAddress());
+        if (request.getSummary() != null) candidate.setSummary(request.getSummary());
+        if (request.getCvUrl() != null) candidate.setCvUrl(request.getCvUrl());
+        if (request.getAvatarUrl() != null) candidate.setAvatarUrl(request.getAvatarUrl());
+
+        candidate = candidateRepository.save(candidate);
+
+        return mapToResponse(candidate);
+    }
+
 
     // ─── Education ──────────────────────────────────────────────────────────────
 
