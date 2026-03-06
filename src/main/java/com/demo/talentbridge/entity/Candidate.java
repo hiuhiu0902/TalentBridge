@@ -22,9 +22,6 @@ public class Candidate {
     @JoinColumn(name = "user_id")
     private User user;
 
-    @Column(length = 100)
-    private String fullName;
-
     @Column(length = 20)
     private String phone;
 

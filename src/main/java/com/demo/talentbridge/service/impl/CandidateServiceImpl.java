@@ -51,7 +51,7 @@ public class CandidateServiceImpl implements CandidateService {
     public CandidateProfileResponse updateProfile(Long userId, CandidateProfileRequest request) {
         Candidate candidate = candidateRepository.findByUserId(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Candidate profile not found for user: " + userId));
-        if (request.getFullName() != null) candidate.setFullName(request.getFullName());
+        if (request.getFullName() != null) candidate.getUser().setFullName(request.getFullName());
         if (request.getPhone() != null) candidate.setPhone(request.getPhone());
         if (request.getAddress() != null) candidate.setAddress(request.getAddress());
         if (request.getSummary() != null) candidate.setSummary(request.getSummary());
@@ -286,7 +286,7 @@ public class CandidateServiceImpl implements CandidateService {
 
         return CandidateProfileResponse.builder()
                 .id(candidate.getId())
-                .fullName(candidate.getFullName())
+                .fullName(candidate.getUser().getFullName())
                 .phone(candidate.getPhone())
                 .address(candidate.getAddress())
                 .summary(candidate.getSummary())

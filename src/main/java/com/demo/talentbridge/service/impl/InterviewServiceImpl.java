@@ -184,7 +184,7 @@ public class InterviewServiceImpl implements InterviewService {
                 .id(i.getId())
                 .applicationId(i.getApplication().getId())
                 .jobTitle(i.getApplication().getJobPost().getTitle())
-                .candidateName(i.getApplication().getCandidate().getFullName())
+                .candidateName(i.getApplication().getCandidate().getUser().getFullName())
                 .interviewAt(i.getInterviewAt())
                 .location(i.getLocation())
                 .meetingLink(i.getMeetingLink())

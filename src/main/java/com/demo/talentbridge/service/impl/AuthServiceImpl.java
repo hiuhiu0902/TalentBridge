@@ -62,6 +62,7 @@ public class AuthServiceImpl implements AuthService {
         User user = User.builder()
                 .username(request.getUsername())
                 .email(request.getEmail())
+                .fullName(request.getFullName())
                 .password(passwordEncoder.encode(request.getPassword()))
                 .role(request.getRole())
                 .active(true)
@@ -72,7 +73,6 @@ public class AuthServiceImpl implements AuthService {
         if (request.getRole() == UserRole.CANDIDATE) {
             Candidate candidate = Candidate.builder()
                     .user(user)
-                    .fullName(request.getFullName())
                     .build();
             candidateRepository.save(candidate);
         } else if (request.getRole() == UserRole.EMPLOYER) {
