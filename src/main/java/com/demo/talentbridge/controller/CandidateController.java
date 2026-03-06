@@ -43,6 +43,13 @@ public class CandidateController {
         return ResponseEntity.ok(ApiResponse.success(candidateService.updateProfile(user.getId(), request)));
     }
 
+    @PostMapping("/profile")
+    public ResponseEntity<CandidateProfileResponse> createProfile(
+            @AuthenticationPrincipal User user,
+            @Valid @RequestBody CandidateProfileRequest request) {
+
+        return ResponseEntity.ok(candidateService.createProfile(user.getId(), request));
+    }
     // ─── Education ──────────────────────────────────────────────────────────────
 
     @GetMapping("/education")
