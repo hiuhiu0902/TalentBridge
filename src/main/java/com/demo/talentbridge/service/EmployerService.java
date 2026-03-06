@@ -7,4 +7,5 @@ public interface EmployerService {
     EmployerProfileResponse getProfile(Long userId);
     EmployerProfileResponse updateProfile(Long userId, EmployerProfileRequest request);
     EmployerProfileResponse getProfileByEmployerId(Long employerId);
+    EmployerProfileResponse createProfile(Long userId, EmployerProfileRequest request);
 }
