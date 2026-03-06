@@ -34,4 +34,9 @@ public class EmployerController {
             @AuthenticationPrincipal User user, @Valid @RequestBody EmployerProfileRequest request) {
         return ResponseEntity.ok(ApiResponse.success(employerService.updateProfile(user.getId(), request)));
     }
+    @PostMapping("/profile")
+    public ResponseEntity<ApiResponse<EmployerProfileResponse>> createProfile(
+            @AuthenticationPrincipal User user, @Valid @RequestBody EmployerProfileRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(employerService.createProfile(user.getId(), request)));
+    }
 }
