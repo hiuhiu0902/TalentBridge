@@ -13,19 +13,28 @@ import java.util.Map;
 @Service
 @RequiredArgsConstructor
 public class ImageServiceImpl implements ImageService {
+
     private final Cloudinary cloudinary;
 
     @Override
     public String upload(MultipartFile file) {
+
         try {
-            Map result = cloudinary.uploader().upload(
+
+            if (file == null || file.isEmpty()) {
+                throw new RuntimeException("File is empty");
+            }
+
+            Map<String, Object> result = cloudinary.uploader().upload(
                     file.getBytes(),
                     ObjectUtils.asMap(
                             "folder", "tailent",
                             "resource_type", "auto"
                     )
             );
+
             return result.get("secure_url").toString();
+
         } catch (IOException e) {
             throw new RuntimeException("Upload image failed", e);
         }
@@ -35,8 +44,11 @@ public class ImageServiceImpl implements ImageService {
     public void delete(String imageUrl) {
 
         try {
+
             String publicId = extractPublicId(imageUrl);
+
             cloudinary.uploader().destroy(publicId, ObjectUtils.emptyMap());
+
         } catch (Exception e) {
             throw new RuntimeException("Delete image failed", e);
         }
@@ -45,12 +57,9 @@ public class ImageServiceImpl implements ImageService {
     @Override
     public String extractPublicId(String url) {
 
-        String[] parts = url.split("/");
+        int start = url.indexOf("tailent/");
+        int end = url.lastIndexOf(".");
 
-        String fileName = parts[parts.length - 1];
-
-        String name = fileName.substring(0, fileName.lastIndexOf("."));
-
-        return "tailent/" + name;
+        return url.substring(start, end);
     }
 }
