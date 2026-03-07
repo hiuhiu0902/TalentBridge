@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.Size;
 import lombok.Builder;
 import lombok.Data;
+import org.springframework.web.multipart.MultipartFile;
 
 @Data
 @Builder
@@ -21,9 +22,9 @@ public class CandidateProfileRequest {
 
     private String summary;
 
-    @Size(max = 255)
-    private String cvUrl;
 
-    @Size(max = 255)
-    private String avatarUrl;
+    private MultipartFile cvUrl;
+
+
+    private MultipartFile avatarUrl;
 }

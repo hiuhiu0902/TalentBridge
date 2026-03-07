@@ -3,6 +3,7 @@ package com.demo.talentbridge.dto.request;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
+import org.springframework.web.multipart.MultipartFile;
 
 @Data
 public class EmployerProfileRequest {
@@ -16,8 +17,8 @@ public class EmployerProfileRequest {
 
     private String description;
 
-    @Size(max = 255)
-    private String logoUrl;
+
+    private MultipartFile  logoUrl;
 
     @Size(max = 100)
     private String industry;
