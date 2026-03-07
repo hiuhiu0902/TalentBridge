@@ -38,12 +38,14 @@ public class ChatServiceImpl implements ChatService {
     }
 
     @Override
+    @Transactional
     public List<ChatRoomResponse> getRoomsForUser(Long userId) {
         return chatRoomRepository.findByUserId(userId).stream()
                 .map(this::mapRoomToResponse).collect(Collectors.toList());
     }
 
     @Override
+    @Transactional
     public List<ChatMessageResponse> getMessages(Long userId, Long roomId) {
         ChatRoom room = chatRoomRepository.findById(roomId)
                 .orElseThrow(() -> new ResourceNotFoundException("ChatRoom", "id", roomId));

@@ -17,7 +17,10 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long> {
            "(cr.userOne.id = :userTwoId AND cr.userTwo.id = :userOneId)")
     Optional<ChatRoom> findByUsers(@Param("userOneId") Long userOneId, @Param("userTwoId") Long userTwoId);
 
-    @Query("SELECT cr FROM ChatRoom cr WHERE cr.userOne.id = :userId OR cr.userTwo.id = :userId " +
-           "ORDER BY cr.lastMessageAt DESC NULLS LAST")
+    @Query("SELECT cr FROM ChatRoom cr " +
+            "JOIN FETCH cr.userOne " +
+            "JOIN FETCH cr.userTwo " +
+            "WHERE cr.userOne.id = :userId OR cr.userTwo.id = :userId " +
+            "ORDER BY cr.lastMessageAt DESC NULLS LAST")
     List<ChatRoom> findByUserId(@Param("userId") Long userId);
 }
