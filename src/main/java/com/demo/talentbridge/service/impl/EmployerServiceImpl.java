@@ -7,6 +7,7 @@ import com.demo.talentbridge.exception.ResourceNotFoundException;
 import com.demo.talentbridge.repository.EmployerRepository;
 import com.demo.talentbridge.repository.FollowConnectionRepository;
 import com.demo.talentbridge.service.EmployerService;
+import com.demo.talentbridge.service.ImageService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,7 +21,12 @@ public class EmployerServiceImpl implements EmployerService {
     @Autowired
     private FollowConnectionRepository followConnectionRepository;
 
+    @Autowired
+
+    private ImageService imageService;
+
     @Override
+    @Transactional
     public EmployerProfileResponse getProfile(Long userId) {
         Employer employer = employerRepository.findByUserId(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Employer profile not found for user: " + userId));
@@ -35,7 +41,10 @@ public class EmployerServiceImpl implements EmployerService {
         employer.setCompanyName(request.getCompanyName());
         if (request.getWebsite() != null) employer.setWebsite(request.getWebsite());
         if (request.getDescription() != null) employer.setDescription(request.getDescription());
-        if (request.getLogoUrl() != null) employer.setLogoUrl(request.getLogoUrl());
+        if (request.getLogoUrl() != null && !request.getLogoUrl().isEmpty()) {
+            String url = imageService.upload(request.getLogoUrl());
+            employer.setLogoUrl(url);
+        }
         if (request.getIndustry() != null) employer.setIndustry(request.getIndustry());
         if (request.getCompanySize() != null) employer.setCompanySize(request.getCompanySize());
         if (request.getAddress() != null) employer.setAddress(request.getAddress());
@@ -58,7 +67,10 @@ public class EmployerServiceImpl implements EmployerService {
 
         if (request.getWebsite() != null) employer.setWebsite(request.getWebsite());
         if (request.getDescription() != null) employer.setDescription(request.getDescription());
-        if (request.getLogoUrl() != null) employer.setLogoUrl(request.getLogoUrl());
+        if (request.getLogoUrl() != null && !request.getLogoUrl().isEmpty()) {
+            String url = imageService.upload(request.getLogoUrl());
+            employer.setLogoUrl(url);
+        }
         if (request.getIndustry() != null) employer.setIndustry(request.getIndustry());
         if (request.getCompanySize() != null) employer.setCompanySize(request.getCompanySize());
         if (request.getAddress() != null) employer.setAddress(request.getAddress());

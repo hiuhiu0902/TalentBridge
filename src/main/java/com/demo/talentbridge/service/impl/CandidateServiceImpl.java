@@ -13,6 +13,7 @@ import com.demo.talentbridge.exception.ResourceNotFoundException;
 import com.demo.talentbridge.exception.UnauthorizedException;
 import com.demo.talentbridge.repository.*;
 import com.demo.talentbridge.service.CandidateService;
+import com.demo.talentbridge.service.ImageService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,9 +38,13 @@ public class CandidateServiceImpl implements CandidateService {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    private ImageService imageService;
+
     // ─── Profile ────────────────────────────────────────────────────────────────
 
     @Override
+    @Transactional
     public CandidateProfileResponse getProfile(Long userId) {
         Candidate candidate = candidateRepository.findByUserId(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Candidate profile not found for user: " + userId));
@@ -55,8 +60,14 @@ public class CandidateServiceImpl implements CandidateService {
         if (request.getPhone() != null) candidate.setPhone(request.getPhone());
         if (request.getAddress() != null) candidate.setAddress(request.getAddress());
         if (request.getSummary() != null) candidate.setSummary(request.getSummary());
-        if (request.getCvUrl() != null) candidate.setCvUrl(request.getCvUrl());
-        if (request.getAvatarUrl() != null) candidate.setAvatarUrl(request.getAvatarUrl());
+        if (request.getCvUrl() != null && !request.getCvUrl().isEmpty()) {
+            String url = imageService.upload(request.getCvUrl());
+            candidate.setCvUrl(url);
+        };
+        if (request.getAvatarUrl() != null && !request.getAvatarUrl().isEmpty()) {
+            String url = imageService.upload(request.getAvatarUrl());
+            candidate.setAvatarUrl(url);
+        }
         candidate = candidateRepository.save(candidate);
         return mapToResponse(candidate);
     }
@@ -70,8 +81,14 @@ public class CandidateServiceImpl implements CandidateService {
         if (request.getPhone() != null) candidate.setPhone(request.getPhone());
         if (request.getAddress() != null) candidate.setAddress(request.getAddress());
         if (request.getSummary() != null) candidate.setSummary(request.getSummary());
-        if (request.getCvUrl() != null) candidate.setCvUrl(request.getCvUrl());
-        if (request.getAvatarUrl() != null) candidate.setAvatarUrl(request.getAvatarUrl());
+        if (request.getCvUrl() != null && !request.getCvUrl().isEmpty()) {
+            String url = imageService.upload(request.getCvUrl());
+            candidate.setCvUrl(url);
+        };
+        if (request.getAvatarUrl() != null && !request.getAvatarUrl().isEmpty()) {
+            String url = imageService.upload(request.getAvatarUrl());
+            candidate.setAvatarUrl(url);
+        }
 
         candidate = candidateRepository.save(candidate);
 
