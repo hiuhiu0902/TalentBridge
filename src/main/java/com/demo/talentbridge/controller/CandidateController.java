@@ -36,19 +36,22 @@ public class CandidateController {
         return ResponseEntity.ok(ApiResponse.success(candidateService.getProfile(userId)));
     }
 
-    @PutMapping("/profile")
+    @PutMapping(value = "/profile", consumes = "multipart/form-data")
     public ResponseEntity<ApiResponse<CandidateProfileResponse>> updateProfile(
             @AuthenticationPrincipal User user,
-            @Valid @RequestBody CandidateProfileRequest request) {
-        return ResponseEntity.ok(ApiResponse.success(candidateService.updateProfile(user.getId(), request)));
+            @Valid @ModelAttribute CandidateProfileRequest request) {
+
+        return ResponseEntity.ok(ApiResponse.success(
+                candidateService.updateProfile(user.getId(), request)));
     }
 
-    @PostMapping("/profile")
+    @PostMapping(value = "/profile", consumes = "multipart/form-data")
     public ResponseEntity<CandidateProfileResponse> createProfile(
             @AuthenticationPrincipal User user,
-            @Valid @RequestBody CandidateProfileRequest request) {
+            @Valid @ModelAttribute CandidateProfileRequest request) {
 
-        return ResponseEntity.ok(candidateService.createProfile(user.getId(), request));
+        return ResponseEntity.ok(
+                candidateService.createProfile(user.getId(), request));
     }
     // ─── Education ──────────────────────────────────────────────────────────────
 

@@ -29,14 +29,20 @@ public class EmployerController {
         return ResponseEntity.ok(ApiResponse.success(employerService.getProfileByEmployerId(employerId)));
     }
 
-    @PutMapping("/profile")
+    @PutMapping(value = "/profile", consumes = "multipart/form-data")
     public ResponseEntity<ApiResponse<EmployerProfileResponse>> updateProfile(
-            @AuthenticationPrincipal User user, @Valid @RequestBody EmployerProfileRequest request) {
-        return ResponseEntity.ok(ApiResponse.success(employerService.updateProfile(user.getId(), request)));
+            @AuthenticationPrincipal User user,
+            @Valid @ModelAttribute EmployerProfileRequest request) {
+
+        return ResponseEntity.ok(
+                ApiResponse.success(employerService.updateProfile(user.getId(), request)));
     }
-    @PostMapping("/profile")
+    @PostMapping(value = "/profile", consumes = "multipart/form-data")
     public ResponseEntity<ApiResponse<EmployerProfileResponse>> createProfile(
-            @AuthenticationPrincipal User user, @Valid @RequestBody EmployerProfileRequest request) {
-        return ResponseEntity.ok(ApiResponse.success(employerService.createProfile(user.getId(), request)));
+            @AuthenticationPrincipal User user,
+            @Valid @ModelAttribute EmployerProfileRequest request) {
+
+        return ResponseEntity.ok(
+                ApiResponse.success(employerService.createProfile(user.getId(), request)));
     }
 }
