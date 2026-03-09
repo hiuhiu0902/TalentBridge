@@ -15,7 +15,10 @@ public class FollowResponse {
     private Long id;
     private Long followerId;
     private String followerUsername;
+    private String followerAvatarUrl;
+
     private Long followedId;
     private String followedUsername;
     private LocalDateTime followedAt;
+    private String followedAvatarUrl;
 }

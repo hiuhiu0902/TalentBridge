@@ -7,6 +7,8 @@ import com.demo.talentbridge.entity.User;
 import com.demo.talentbridge.service.UserService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -33,5 +35,14 @@ public class UserController {
     public ResponseEntity<ApiResponse<Void>> deactivate(@AuthenticationPrincipal User currentUser) {
         userService.deactivateAccount(currentUser.getId());
         return ResponseEntity.ok(ApiResponse.success("Account deactivated", null));
+    }
+    @GetMapping("/search")
+    public ResponseEntity<ApiResponse<Page<UserResponse>>> searchUsers(
+            @RequestParam String keyword,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+
+        Page<UserResponse> users = userService.searchUsers(keyword, PageRequest.of(page, size));
+        return ResponseEntity.ok(ApiResponse.success(users));
     }
 }

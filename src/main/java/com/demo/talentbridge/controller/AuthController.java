@@ -1,5 +1,6 @@
 package com.demo.talentbridge.controller;
 
+import com.demo.talentbridge.dto.request.GoogleAuthRequest;
 import com.demo.talentbridge.dto.request.LoginRequest;
 import com.demo.talentbridge.dto.request.RegisterRequest;
 import com.demo.talentbridge.dto.response.ApiResponse;
@@ -33,5 +34,10 @@ public class AuthController {
     @GetMapping("/me")
     public ResponseEntity<ApiResponse<UserResponse>> getCurrentUser(@AuthenticationPrincipal UserDetails userDetails) {
         return ResponseEntity.ok(ApiResponse.success(authService.getCurrentUser(userDetails.getUsername())));
+    }
+    @PostMapping("/google")
+    public ResponseEntity<AuthResponse> googleLogin(@RequestBody GoogleAuthRequest request) {
+        AuthResponse response = authService.googleLogin(request);
+        return ResponseEntity.ok(response);
     }
 }

@@ -87,8 +87,10 @@ public class FollowServiceImpl implements FollowService {
                 .id(fc.getId())
                 .followerId(fc.getFollower().getId())
                 .followerUsername(fc.getFollower().getUsername())
+                .followerAvatarUrl((fc.getFollower().getAvatarUrl()))
                 .followedId(fc.getFollowed().getId())
                 .followedUsername(fc.getFollowed().getUsername())
+                .followedAvatarUrl((fc.getFollowed().getAvatarUrl()))
                 .followedAt(fc.getFollowedAt())
                 .build();
     }

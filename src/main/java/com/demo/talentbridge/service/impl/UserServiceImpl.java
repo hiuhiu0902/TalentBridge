@@ -8,6 +8,8 @@ import com.demo.talentbridge.exception.ResourceNotFoundException;
 import com.demo.talentbridge.repository.UserRepository;
 import com.demo.talentbridge.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -76,6 +78,11 @@ public class UserServiceImpl implements UserService {
         user.setActive(active);
         user = userRepository.save(user);
         return mapToResponse(user);
+    }
+    @Override
+    public Page<UserResponse> searchUsers(String keyword, Pageable pageable) {
+        return userRepository.searchUsers(keyword, pageable)
+                .map(this::mapToResponse);
     }
 
     private UserResponse mapToResponse(User user) {
