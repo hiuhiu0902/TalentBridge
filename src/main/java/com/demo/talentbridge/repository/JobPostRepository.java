@@ -21,10 +21,12 @@ public interface JobPostRepository extends JpaRepository<JobPost, Long> {
 
     Page<JobPost> findByStatus(JobStatus status, Pageable pageable);
 
+    List<JobPost> findByStatusOrderByPostedAtDesc(JobStatus status, Pageable pageable);
+
     @Query("SELECT j FROM JobPost j WHERE j.status = 'ACTIVE' AND " +
-           "(LOWER(j.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
-           "LOWER(j.description) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
-           "LOWER(j.employer.companyName) LIKE LOWER(CONCAT('%', :keyword, '%')))")
+            "(LOWER(j.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+            "LOWER(j.description) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+            "LOWER(j.employer.companyName) LIKE LOWER(CONCAT('%', :keyword, '%')))")
     Page<JobPost> searchByKeyword(@Param("keyword") String keyword, Pageable pageable);
 
     @Query("SELECT j FROM JobPost j WHERE j.status = 'ACTIVE' AND j.category.id = :categoryId")
@@ -36,10 +38,9 @@ public interface JobPostRepository extends JpaRepository<JobPost, Long> {
     @Query("SELECT DISTINCT j FROM JobPost j JOIN j.jobSkills js WHERE j.status = 'ACTIVE' AND js.skillName IN :skillNames")
     Page<JobPost> findBySkillNames(@Param("skillNames") List<SkillName> skillNames, Pageable pageable);
 
-    // Feed: Jobs from followed employers first, then other active jobs
     @Query("SELECT j FROM JobPost j WHERE j.status = 'ACTIVE' AND j.employer.id IN " +
-           "(SELECT fc.followed.id FROM FollowConnection fc WHERE fc.follower.id = :userId) " +
-           "ORDER BY j.postedAt DESC")
+            "(SELECT fc.followed.id FROM FollowConnection fc WHERE fc.follower.id = :userId) " +
+            "ORDER BY j.postedAt DESC")
     List<JobPost> findJobsFromFollowedEmployers(@Param("userId") Long userId);
 
     @Query("SELECT j FROM JobPost j WHERE j.status = 'ACTIVE' ORDER BY j.postedAt DESC")
