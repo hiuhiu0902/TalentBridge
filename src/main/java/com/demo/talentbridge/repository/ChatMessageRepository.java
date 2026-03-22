@@ -19,8 +19,7 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
 
     List<ChatMessage> findByChatRoomIdOrderBySentAtAsc(Long roomId);
 
-    @Query("SELECT cm FROM ChatMessage cm WHERE cm.chatRoom.id = :roomId ORDER BY cm.sentAt DESC LIMIT 1")
-    Optional<ChatMessage> findLastMessageByRoomId(@Param("roomId") Long roomId);
+    Optional<ChatMessage> findTopByChatRoomIdOrderBySentAtDesc(Long roomId);
 
     long countByChatRoomIdAndIsReadFalseAndSenderIdNot(Long roomId, Long senderId);
 

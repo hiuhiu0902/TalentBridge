@@ -81,7 +81,7 @@ public class ChatServiceImpl implements ChatService {
     }
 
     private ChatRoomResponse mapRoomToResponse(ChatRoom room) {
-        String lastMsg = chatMessageRepository.findLastMessageByRoomId(room.getId())
+        String lastMsg = chatMessageRepository.findTopByChatRoomIdOrderBySentAtDesc(room.getId())
                 .map(ChatMessage::getContent).orElse(null);
         return ChatRoomResponse.builder()
                 .id(room.getId())

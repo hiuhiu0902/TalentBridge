@@ -13,14 +13,14 @@ import java.util.Optional;
 public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long> {
 
     @Query("SELECT cr FROM ChatRoom cr WHERE " +
-           "(cr.userOne.id = :userOneId AND cr.userTwo.id = :userTwoId) OR " +
-           "(cr.userOne.id = :userTwoId AND cr.userTwo.id = :userOneId)")
+            "(cr.userOne.id = :userOneId AND cr.userTwo.id = :userTwoId) OR " +
+            "(cr.userOne.id = :userTwoId AND cr.userTwo.id = :userOneId)")
     Optional<ChatRoom> findByUsers(@Param("userOneId") Long userOneId, @Param("userTwoId") Long userTwoId);
 
     @Query("SELECT cr FROM ChatRoom cr " +
             "JOIN FETCH cr.userOne " +
             "JOIN FETCH cr.userTwo " +
             "WHERE cr.userOne.id = :userId OR cr.userTwo.id = :userId " +
-            "ORDER BY cr.lastMessageAt DESC NULLS LAST")
+            "ORDER BY CASE WHEN cr.lastMessageAt IS NULL THEN 1 ELSE 0 END, cr.lastMessageAt DESC")
     List<ChatRoom> findByUserId(@Param("userId") Long userId);
 }
