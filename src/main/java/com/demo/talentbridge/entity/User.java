@@ -17,9 +17,10 @@ import java.util.List;
 @Setter
 @Builder
 @NoArgsConstructor
+@Table(name = "users")
 @AllArgsConstructor
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
-@ToString(exclude = {"password", "employer", "candidate", "notifications"})
+@ToString(exclude = {"password", "employers", "candidates", "notifications"})
 public class User implements UserDetails {
 
     @Id

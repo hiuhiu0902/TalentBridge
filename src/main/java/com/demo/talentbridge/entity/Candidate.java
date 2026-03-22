@@ -7,14 +7,18 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
+@Getter
+@Setter
 @Table(name = "candidates")
-@Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
+@ToString(exclude = {"users", "jobPosts"})
 public class Candidate {
 
     @Id
+    @EqualsAndHashCode.Include
     private Long id;
 
     @OneToOne(fetch = FetchType.LAZY)

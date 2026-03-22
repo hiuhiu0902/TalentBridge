@@ -9,11 +9,12 @@ import java.util.List;
 @Entity
 @Getter
 @Setter
+@Table(name = "employers")
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
-@ToString(exclude = {"user", "jobPosts"})
+@ToString(exclude = {"users", "jobPosts"})
 public class Employer {
 
     @Id
