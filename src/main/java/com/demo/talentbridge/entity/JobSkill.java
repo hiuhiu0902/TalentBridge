@@ -8,10 +8,13 @@ import lombok.*;
 @Entity
 @Table(name = "job_skills",
         uniqueConstraints = @UniqueConstraint(columnNames = {"job_post_id", "skill_name"}))
-@Data
+@Getter
+@Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
+@ToString(exclude = {"jobPost"})
 public class JobSkill {
 
     @Id

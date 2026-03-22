@@ -11,10 +11,13 @@ import java.util.List;
 
 @Entity
 @Table(name = "job_posts")
-@Data
+@Getter
+@Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
+@ToString(exclude = {"employer", "category", "jobSkills", "applications", "savedJobs"})
 public class JobPost {
 
     @Id
