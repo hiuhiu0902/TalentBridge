@@ -50,6 +50,7 @@ public class JobPost {
     private String jobType; // FULL_TIME, PART_TIME, REMOTE, CONTRACT
 
     @Column(length = 50)
+    @Enumerated(EnumType.STRING)
     private ExperienceLevel experienceLevel; // ENTRY, MID, SENIOR
 
     @Enumerated(EnumType.STRING)
