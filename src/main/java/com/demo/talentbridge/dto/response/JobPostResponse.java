@@ -1,5 +1,6 @@
 package com.demo.talentbridge.dto.response;
 
+import com.demo.talentbridge.enums.ExperienceLevel;
 import com.demo.talentbridge.enums.JobStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -22,7 +23,7 @@ public class JobPostResponse {
     private BigDecimal salaryMax;
     private String location;
     private String jobType;
-    private String experienceLevel;
+    private ExperienceLevel experienceLevel;
     private JobStatus status;
     private LocalDateTime postedAt;
     private LocalDateTime expiredAt;

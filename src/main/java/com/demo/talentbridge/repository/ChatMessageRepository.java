@@ -15,6 +15,7 @@ import java.util.Optional;
 @Repository
 public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> {
 
+
     Page<ChatMessage> findByChatRoomIdOrderBySentAtAsc(Long roomId, Pageable pageable);
 
     List<ChatMessage> findByChatRoomIdOrderBySentAtAsc(Long roomId);
@@ -23,7 +24,13 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
 
     long countByChatRoomIdAndIsReadFalseAndSenderIdNot(Long roomId, Long senderId);
 
-    @Modifying
-    @Query("UPDATE ChatMessage cm SET cm.isRead = true WHERE cm.chatRoom.id = :roomId AND cm.sender.id != :userId")
-    void markMessagesAsRead(@Param("roomId") Long roomId, @Param("userId") Long userId);
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+           UPDATE ChatMessage cm
+           SET cm.isRead = true
+           WHERE cm.chatRoom.id = :roomId
+             AND cm.sender.id <> :userId
+             AND cm.isRead = false
+           """)
+    int markMessagesAsRead(@Param("roomId") Long roomId, @Param("userId") Long userId);
 }

@@ -11,7 +11,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class CandidateProfileRequest {
 
     @Size(max = 100)
-    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
+    @JsonProperty(access = JsonProperty.Access.AUTO)
     private String fullName;
 
     @Size(max = 20)

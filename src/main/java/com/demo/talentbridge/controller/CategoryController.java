@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -21,7 +22,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/v1/categories")
 @SecurityRequirement(name = "bearerAuth")
-
+@PreAuthorize(" hasRole('ADMIN')") // Allow both USER and ADMIN to access these endpoints
 public class CategoryController {
 
     @Autowired

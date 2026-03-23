@@ -1,5 +1,6 @@
 package com.demo.talentbridge.entity;
 
+import com.demo.talentbridge.enums.ExperienceLevel;
 import com.demo.talentbridge.enums.JobStatus;
 import jakarta.persistence.*;
 import lombok.*;
@@ -49,7 +50,7 @@ public class JobPost {
     private String jobType; // FULL_TIME, PART_TIME, REMOTE, CONTRACT
 
     @Column(length = 50)
-    private String experienceLevel; // ENTRY, MID, SENIOR
+    private ExperienceLevel experienceLevel; // ENTRY, MID, SENIOR
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)

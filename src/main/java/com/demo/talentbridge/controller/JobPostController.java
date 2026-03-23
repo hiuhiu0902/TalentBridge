@@ -22,7 +22,6 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/jobs")
 @SecurityRequirement(name = "bearerAuth")
-
 public class JobPostController {
 
     @Autowired

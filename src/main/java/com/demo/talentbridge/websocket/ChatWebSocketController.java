@@ -14,39 +14,37 @@ import org.springframework.stereotype.Controller;
 @Controller
 public class ChatWebSocketController {
 
-    @Autowired private ChatService chatService;
-    @Autowired private SimpMessagingTemplate messagingTemplate;
+    @Autowired
+    private ChatService chatService;
 
-    /**
-     * Client sends to: /app/chat.sendMessage
-     * Server broadcasts to: /user/{recipientId}/queue/messages
-     */
+    @Autowired
+    private SimpMessagingTemplate messagingTemplate;
+
     @MessageMapping("/chat.sendMessage")
     public void sendMessage(@Payload SendMessageRequest request,
                             @AuthenticationPrincipal User sender) {
-        if (sender == null) return;
+        if (sender == null || request == null) {
+            return;
+        }
 
-        ChatMessageResponse message = chatService.sendMessage(sender.getId(), request.getRoomId(), request.getContent());
+        ChatMessageResponse message = chatService.sendMessage(
+                sender.getId(),
+                request.getRoomId(),
+                request.getContent()
+        );
 
-        // Determine recipient
-        chatService.getRoomsForUser(sender.getId()).stream()
-                .filter(r -> r.getId().equals(request.getRoomId()))
-                .findFirst()
-                .ifPresent(room -> {
-                    Long recipientId = room.getUserOneId().equals(sender.getId())
-                            ? room.getUserTwoId() : room.getUserOneId();
-                    // Send to recipient
-                    messagingTemplate.convertAndSendToUser(
-                            recipientId.toString(),
-                            "/queue/messages",
-                            message
-                    );
-                    // Also send back to sender for confirmation
-                    messagingTemplate.convertAndSendToUser(
-                            sender.getId().toString(),
-                            "/queue/messages",
-                            message
-                    );
-                });
+        Long recipientId = chatService.resolveRecipientId(sender.getId(), request.getRoomId());
+
+        messagingTemplate.convertAndSendToUser(
+                recipientId.toString(),
+                "/queue/messages",
+                message
+        );
+
+        messagingTemplate.convertAndSendToUser(
+                sender.getId().toString(),
+                "/queue/messages",
+                message
+        );
     }
 }

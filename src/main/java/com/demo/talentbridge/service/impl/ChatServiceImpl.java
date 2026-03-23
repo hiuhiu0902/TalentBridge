@@ -2,10 +2,15 @@ package com.demo.talentbridge.service.impl;
 
 import com.demo.talentbridge.dto.response.ChatMessageResponse;
 import com.demo.talentbridge.dto.response.ChatRoomResponse;
-import com.demo.talentbridge.entity.*;
+import com.demo.talentbridge.entity.ChatMessage;
+import com.demo.talentbridge.entity.ChatRoom;
+import com.demo.talentbridge.entity.User;
+import com.demo.talentbridge.exception.BadRequestException;
 import com.demo.talentbridge.exception.ResourceNotFoundException;
 import com.demo.talentbridge.exception.UnauthorizedException;
-import com.demo.talentbridge.repository.*;
+import com.demo.talentbridge.repository.ChatMessageRepository;
+import com.demo.talentbridge.repository.ChatRoomRepository;
+import com.demo.talentbridge.repository.UserRepository;
 import com.demo.talentbridge.service.ChatService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -18,71 +23,156 @@ import java.util.stream.Collectors;
 @Service
 public class ChatServiceImpl implements ChatService {
 
-    @Autowired private ChatRoomRepository chatRoomRepository;
-    @Autowired private ChatMessageRepository chatMessageRepository;
-    @Autowired private UserRepository userRepository;
+    private static final int MAX_MESSAGE_LENGTH = 4000;
+
+    @Autowired
+    private ChatRoomRepository chatRoomRepository;
+
+    @Autowired
+    private ChatMessageRepository chatMessageRepository;
+
+    @Autowired
+    private UserRepository userRepository;
 
     @Override
     @Transactional
     public ChatRoomResponse getOrCreateRoom(Long userOneId, Long userTwoId) {
-        return chatRoomRepository.findByUsers(userOneId, userTwoId)
-                .map(this::mapRoomToResponse)
+        if (userOneId == null || userTwoId == null) {
+            throw new BadRequestException("User ids are required");
+        }
+
+        if (userOneId.equals(userTwoId)) {
+            throw new BadRequestException("You cannot create a chat room with yourself");
+        }
+
+        Long firstUserId = Math.min(userOneId, userTwoId);
+        Long secondUserId = Math.max(userOneId, userTwoId);
+
+        return chatRoomRepository.findByUsers(firstUserId, secondUserId)
+                .map(room -> mapRoomToResponse(room, userOneId))
                 .orElseGet(() -> {
-                    User u1 = userRepository.findById(userOneId)
-                            .orElseThrow(() -> new ResourceNotFoundException("User", "id", userOneId));
-                    User u2 = userRepository.findById(userTwoId)
-                            .orElseThrow(() -> new ResourceNotFoundException("User", "id", userTwoId));
-                    ChatRoom room = ChatRoom.builder().userOne(u1).userTwo(u2).build();
-                    return mapRoomToResponse(chatRoomRepository.save(room));
+                    User firstUser = userRepository.findById(firstUserId)
+                            .orElseThrow(() -> new ResourceNotFoundException("User", "id", firstUserId));
+                    User secondUser = userRepository.findById(secondUserId)
+                            .orElseThrow(() -> new ResourceNotFoundException("User", "id", secondUserId));
+
+                    ChatRoom room = ChatRoom.builder()
+                            .userOne(firstUser)
+                            .userTwo(secondUser)
+                            .createdAt(LocalDateTime.now())
+                            .lastMessageAt(null)
+                            .build();
+
+                    return mapRoomToResponse(chatRoomRepository.save(room), userOneId);
                 });
     }
 
     @Override
-    @Transactional
+    @Transactional(readOnly = true)
     public List<ChatRoomResponse> getRoomsForUser(Long userId) {
+        requireUser(userId);
+
         return chatRoomRepository.findByUserId(userId).stream()
-                .map(this::mapRoomToResponse).collect(Collectors.toList());
+                .map(room -> mapRoomToResponse(room, userId))
+                .collect(Collectors.toList());
     }
 
     @Override
-    @Transactional
+    @Transactional(readOnly = true)
     public List<ChatMessageResponse> getMessages(Long userId, Long roomId) {
-        ChatRoom room = chatRoomRepository.findById(roomId)
-                .orElseThrow(() -> new ResourceNotFoundException("ChatRoom", "id", roomId));
-        if (!room.getUserOne().getId().equals(userId) && !room.getUserTwo().getId().equals(userId)) {
-            throw new UnauthorizedException("You are not a member of this chat room");
-        }
-        return chatMessageRepository.findByChatRoomIdOrderBySentAtAsc(roomId).stream()
-                .map(this::mapMsgToResponse).collect(Collectors.toList());
+        ChatRoom room = requireRoomMember(userId, roomId);
+
+        return chatMessageRepository.findByChatRoomIdOrderBySentAtAsc(room.getId()).stream()
+                .map(this::mapMsgToResponse)
+                .collect(Collectors.toList());
     }
 
     @Override
     @Transactional
     public ChatMessageResponse sendMessage(Long senderId, Long roomId, String content) {
-        ChatRoom room = chatRoomRepository.findById(roomId)
-                .orElseThrow(() -> new ResourceNotFoundException("ChatRoom", "id", roomId));
-        User sender = userRepository.findById(senderId)
-                .orElseThrow(() -> new ResourceNotFoundException("User", "id", senderId));
-        if (!room.getUserOne().getId().equals(senderId) && !room.getUserTwo().getId().equals(senderId)) {
-            throw new UnauthorizedException("You are not a member of this chat room");
-        }
-        ChatMessage msg = ChatMessage.builder()
-                .chatRoom(room).sender(sender).content(content).isRead(false).build();
-        msg = chatMessageRepository.save(msg);
-        room.setLastMessageAt(LocalDateTime.now());
+        ChatRoom room = requireRoomMember(senderId, roomId);
+        User sender = requireUser(senderId);
+        String normalizedContent = normalizeMessageContent(content);
+
+        ChatMessage message = ChatMessage.builder()
+                .chatRoom(room)
+                .sender(sender)
+                .content(normalizedContent)
+                .isRead(false)
+                .sentAt(LocalDateTime.now())
+                .build();
+
+        message = chatMessageRepository.save(message);
+
+        room.setLastMessageAt(message.getSentAt());
         chatRoomRepository.save(room);
-        return mapMsgToResponse(msg);
+
+        return mapMsgToResponse(message);
     }
 
     @Override
     @Transactional
     public void markMessagesAsRead(Long userId, Long roomId) {
-        chatMessageRepository.markMessagesAsRead(roomId, userId);
+        ChatRoom room = requireRoomMember(userId, roomId);
+        chatMessageRepository.markMessagesAsRead(room.getId(), userId);
     }
 
-    private ChatRoomResponse mapRoomToResponse(ChatRoom room) {
-        String lastMsg = chatMessageRepository.findTopByChatRoomIdOrderBySentAtDesc(room.getId())
-                .map(ChatMessage::getContent).orElse(null);
+    @Override
+    @Transactional(readOnly = true)
+    public Long resolveRecipientId(Long userId, Long roomId) {
+        ChatRoom room = requireRoomMember(userId, roomId);
+        return room.getUserOne().getId().equals(userId)
+                ? room.getUserTwo().getId()
+                : room.getUserOne().getId();
+    }
+
+    private User requireUser(Long userId) {
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+    }
+
+    private ChatRoom requireRoomMember(Long userId, Long roomId) {
+        if (roomId == null) {
+            throw new BadRequestException("Room id is required");
+        }
+
+        ChatRoom room = chatRoomRepository.findById(roomId)
+                .orElseThrow(() -> new ResourceNotFoundException("ChatRoom", "id", roomId));
+
+        boolean isMember = room.getUserOne().getId().equals(userId) || room.getUserTwo().getId().equals(userId);
+        if (!isMember) {
+            throw new UnauthorizedException("You are not a member of this chat room");
+        }
+
+        return room;
+    }
+
+    private String normalizeMessageContent(String content) {
+        if (content == null) {
+            throw new BadRequestException("Message content is required");
+        }
+
+        String normalized = content.trim();
+        if (normalized.isBlank()) {
+            throw new BadRequestException("Message content is required");
+        }
+
+        if (normalized.length() > MAX_MESSAGE_LENGTH) {
+            throw new BadRequestException("Message content must not exceed " + MAX_MESSAGE_LENGTH + " characters");
+        }
+
+        return normalized;
+    }
+
+    private ChatRoomResponse mapRoomToResponse(ChatRoom room, Long currentUserId) {
+        String lastMessage = chatMessageRepository.findTopByChatRoomIdOrderBySentAtDesc(room.getId())
+                .map(ChatMessage::getContent)
+                .orElse(null);
+
+        int unreadCount = currentUserId == null
+                ? 0
+                : Math.toIntExact(chatMessageRepository.countByChatRoomIdAndIsReadFalseAndSenderIdNot(room.getId(), currentUserId));
+
         return ChatRoomResponse.builder()
                 .id(room.getId())
                 .userOneId(room.getUserOne().getId())
@@ -93,17 +183,21 @@ public class ChatServiceImpl implements ChatService {
                 .userTwoAvatar(room.getUserTwo().getAvatarUrl())
                 .createdAt(room.getCreatedAt())
                 .lastMessageAt(room.getLastMessageAt())
-                .lastMessage(lastMsg)
+                .lastMessage(lastMessage)
+                .unreadCount(unreadCount)
                 .build();
     }
 
     private ChatMessageResponse mapMsgToResponse(ChatMessage msg) {
         return ChatMessageResponse.builder()
-                .id(msg.getId()).roomId(msg.getChatRoom().getId())
+                .id(msg.getId())
+                .roomId(msg.getChatRoom().getId())
                 .senderId(msg.getSender().getId())
                 .senderUsername(msg.getSender().getUsername())
                 .senderAvatar(msg.getSender().getAvatarUrl())
-                .content(msg.getContent()).isRead(msg.getIsRead()).sentAt(msg.getSentAt())
+                .content(msg.getContent())
+                .isRead(msg.getIsRead())
+                .sentAt(msg.getSentAt())
                 .build();
     }
 }

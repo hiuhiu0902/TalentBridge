@@ -79,6 +79,7 @@ public class CandidateServiceImpl implements CandidateService {
                 .orElseThrow(() -> new RuntimeException("Candidate not found"));
 
         if (request.getPhone() != null) candidate.setPhone(request.getPhone());
+        if(request.getFullName() != null) candidate.getUser().setFullName(request.getFullName());
         if (request.getAddress() != null) candidate.setAddress(request.getAddress());
         if (request.getSummary() != null) candidate.setSummary(request.getSummary());
         if (request.getCvUrl() != null && !request.getCvUrl().isEmpty()) {

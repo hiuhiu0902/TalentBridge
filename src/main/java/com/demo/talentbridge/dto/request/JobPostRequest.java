@@ -1,5 +1,6 @@
 package com.demo.talentbridge.dto.request;
 
+import com.demo.talentbridge.enums.ExperienceLevel;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
@@ -27,7 +28,7 @@ public class JobPostRequest {
     private String jobType;
 
     @Size(max = 50)
-    private String experienceLevel;
+    private ExperienceLevel experienceLevel;
 
     private Long categoryId;
 

@@ -71,6 +71,7 @@ public class EmployerServiceImpl implements EmployerService {
             String url = imageService.upload(request.getLogoUrl());
             employer.setLogoUrl(url);
         }
+        if(request.getCompanyName() != null) employer.setCompanyName(request.getCompanyName());
         if (request.getIndustry() != null) employer.setIndustry(request.getIndustry());
         if (request.getCompanySize() != null) employer.setCompanySize(request.getCompanySize());
         if (request.getAddress() != null) employer.setAddress(request.getAddress());

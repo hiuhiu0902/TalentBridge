@@ -19,7 +19,9 @@ import java.util.List;
 @RequestMapping("/api/v1/chat")
 @SecurityRequirement(name = "bearerAuth")
 public class ChatController {
-    @Autowired private ChatService chatService;
+
+    @Autowired
+    private ChatService chatService;
 
     @GetMapping("/rooms")
     public ResponseEntity<ApiResponse<List<ChatRoomResponse>>> getRooms(@AuthenticationPrincipal User user) {
@@ -28,26 +30,38 @@ public class ChatController {
 
     @PostMapping("/rooms/{otherUserId}")
     public ResponseEntity<ApiResponse<ChatRoomResponse>> getOrCreateRoom(
-            @AuthenticationPrincipal User user, @PathVariable Long otherUserId) {
-        return ResponseEntity.ok(ApiResponse.success(chatService.getOrCreateRoom(user.getId(), otherUserId)));
+            @AuthenticationPrincipal User user,
+            @PathVariable Long otherUserId
+    ) {
+        return ResponseEntity.ok(ApiResponse.success(
+                chatService.getOrCreateRoom(user.getId(), otherUserId)
+        ));
     }
 
     @GetMapping("/rooms/{roomId}/messages")
     public ResponseEntity<ApiResponse<List<ChatMessageResponse>>> getMessages(
-            @AuthenticationPrincipal User user, @PathVariable Long roomId) {
-        return ResponseEntity.ok(ApiResponse.success(chatService.getMessages(user.getId(), roomId)));
+            @AuthenticationPrincipal User user,
+            @PathVariable Long roomId
+    ) {
+        return ResponseEntity.ok(ApiResponse.success(
+                chatService.getMessages(user.getId(), roomId)
+        ));
     }
 
     @PutMapping("/rooms/{roomId}/read")
-    public ResponseEntity<ApiResponse<Void>> markRead(@AuthenticationPrincipal User user, @PathVariable Long roomId) {
+    public ResponseEntity<ApiResponse<Void>> markRead(
+            @AuthenticationPrincipal User user,
+            @PathVariable Long roomId
+    ) {
         chatService.markMessagesAsRead(user.getId(), roomId);
         return ResponseEntity.ok(ApiResponse.success("Messages marked as read", null));
     }
+
     @PostMapping("/messages")
     public ResponseEntity<ApiResponse<ChatMessageResponse>> sendMessage(
             @AuthenticationPrincipal User user,
-            @Valid @RequestBody SendMessageRequest request) {
-
+            @Valid @RequestBody SendMessageRequest request
+    ) {
         ChatMessageResponse messageResponse = chatService.sendMessage(
                 user.getId(),
                 request.getRoomId(),
