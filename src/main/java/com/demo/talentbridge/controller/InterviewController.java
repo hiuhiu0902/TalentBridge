@@ -9,9 +9,8 @@ import com.demo.talentbridge.service.InterviewService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import java.util.List;
 
 @RestController
@@ -21,7 +20,6 @@ public class InterviewController {
     @Autowired
     private InterviewService interviewService;
 
-    /** Employer: schedule a new interview */
     @PostMapping
     public ResponseEntity<ApiResponse<InterviewResponse>> schedule(
             @AuthenticationPrincipal User user,
@@ -30,7 +28,6 @@ public class InterviewController {
                 interviewService.scheduleInterview(user.getId(), request)));
     }
 
-    /** Employer: update interview details (reschedule) */
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<InterviewResponse>> update(
             @AuthenticationPrincipal User user,
@@ -40,7 +37,6 @@ public class InterviewController {
                 interviewService.updateInterview(user.getId(), id, request)));
     }
 
-    /** Employer: update interview status only */
     @PutMapping("/{id}/status")
     public ResponseEntity<ApiResponse<InterviewResponse>> updateStatus(
             @AuthenticationPrincipal User user,
@@ -50,7 +46,6 @@ public class InterviewController {
                 interviewService.updateInterviewStatus(user.getId(), id, status)));
     }
 
-    /** Employer: cancel interview */
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> cancel(
             @AuthenticationPrincipal User user,
@@ -59,15 +54,23 @@ public class InterviewController {
         return ResponseEntity.ok(ApiResponse.success("Interview cancelled", null));
     }
 
-    /** Get interviews for a specific application */
-    @GetMapping("/application/{applicationId}")
-    public ResponseEntity<ApiResponse<List<InterviewResponse>>> getByApplication(
-            @PathVariable Long applicationId) {
+    // detail interview for notification "xem chi tiết"
+    @GetMapping("/{id}")
+    public ResponseEntity<ApiResponse<InterviewResponse>> getById(
+            @AuthenticationPrincipal User user,
+            @PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success(
-                interviewService.getInterviewsByApplication(applicationId)));
+                interviewService.getInterviewById(user.getId(), id)));
     }
 
-    /** Candidate: get all my interviews */
+    @GetMapping("/application/{applicationId}")
+    public ResponseEntity<ApiResponse<List<InterviewResponse>>> getByApplication(
+            @AuthenticationPrincipal User user,
+            @PathVariable Long applicationId) {
+        return ResponseEntity.ok(ApiResponse.success(
+                interviewService.getInterviewsByApplication(user.getId(), applicationId)));
+    }
+
     @GetMapping("/my-interviews")
     public ResponseEntity<ApiResponse<List<InterviewResponse>>> getMyInterviews(
             @AuthenticationPrincipal User user) {
@@ -75,7 +78,6 @@ public class InterviewController {
                 interviewService.getInterviewsForCandidate(user.getId())));
     }
 
-    /** Employer: get all interviews for my jobs */
     @GetMapping("/employer")
     public ResponseEntity<ApiResponse<List<InterviewResponse>>> getEmployerInterviews(
             @AuthenticationPrincipal User user) {

@@ -15,4 +15,5 @@ public interface NotificationService {
     void deleteNotification(Long userId, Long notificationId);
     void createNotification(User user, String title, String content, NotificationType type, String referenceUrl);
     void notifyFollowersOfNewJob(Long employerUserId, Long jobPostId, String jobTitle);
+    NotificationResponse getNotificationById(Long userId, Long notificationId);
 }

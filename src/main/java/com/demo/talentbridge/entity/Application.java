@@ -34,7 +34,6 @@ public class Application {
     @Builder.Default
     private ApplicationStatus status = ApplicationStatus.SUBMITTED;
 
-    // Snapshot of CV URL at time of application (BR: must be preserved)
     @Column(length = 255)
     private String cvUrlAtTime;
 

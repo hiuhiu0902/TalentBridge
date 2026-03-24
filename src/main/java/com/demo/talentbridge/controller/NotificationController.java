@@ -48,4 +48,11 @@ public class NotificationController {
         notificationService.deleteNotification(user.getId(), id);
         return ResponseEntity.ok(ApiResponse.success("Deleted", null));
     }
+    @GetMapping("/{id}")
+    public ResponseEntity<ApiResponse<NotificationResponse>> getById(
+            @AuthenticationPrincipal User user,
+            @PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(
+                notificationService.getNotificationById(user.getId(), id)));
+    }
 }

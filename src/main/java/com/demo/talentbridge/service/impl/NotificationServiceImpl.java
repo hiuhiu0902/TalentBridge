@@ -42,7 +42,18 @@ public class NotificationServiceImpl implements NotificationService {
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
+    @Override
+    @Transactional(readOnly = true)
+    public NotificationResponse getNotificationById(Long userId, Long notificationId) {
+        Notification notification = notificationRepository.findById(notificationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Notification", "id", notificationId));
 
+        if (!notification.getUser().getId().equals(userId)) {
+            throw new UnauthorizedException("You don't have permission to view this notification");
+        }
+
+        return mapToResponse(notification);
+    }
     @Override
     public long getUnreadCount(Long userId) {
         return notificationRepository.countByUserIdAndIsReadFalse(userId);

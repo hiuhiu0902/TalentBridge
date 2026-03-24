@@ -11,7 +11,9 @@ public interface InterviewService {
     InterviewResponse updateInterview(Long employerUserId, Long interviewId, InterviewRequest request);
     InterviewResponse updateInterviewStatus(Long employerUserId, Long interviewId, InterviewStatus status);
     void cancelInterview(Long employerUserId, Long interviewId);
-    List<InterviewResponse> getInterviewsByApplication(Long applicationId);
+
+    InterviewResponse getInterviewById(Long requesterUserId, Long interviewId);
+    List<InterviewResponse> getInterviewsByApplication(Long requesterUserId, Long applicationId);
     List<InterviewResponse> getInterviewsForCandidate(Long candidateUserId);
     List<InterviewResponse> getInterviewsForEmployer(Long employerUserId);
 }

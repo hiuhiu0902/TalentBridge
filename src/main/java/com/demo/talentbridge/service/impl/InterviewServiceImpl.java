@@ -2,14 +2,20 @@ package com.demo.talentbridge.service.impl;
 
 import com.demo.talentbridge.dto.request.InterviewRequest;
 import com.demo.talentbridge.dto.response.InterviewResponse;
-import com.demo.talentbridge.entity.*;
+import com.demo.talentbridge.entity.Application;
+import com.demo.talentbridge.entity.Candidate;
+import com.demo.talentbridge.entity.Employer;
+import com.demo.talentbridge.entity.Interview;
 import com.demo.talentbridge.enums.ApplicationStatus;
 import com.demo.talentbridge.enums.InterviewStatus;
 import com.demo.talentbridge.enums.NotificationType;
 import com.demo.talentbridge.exception.BadRequestException;
 import com.demo.talentbridge.exception.ResourceNotFoundException;
 import com.demo.talentbridge.exception.UnauthorizedException;
-import com.demo.talentbridge.repository.*;
+import com.demo.talentbridge.repository.ApplicationRepository;
+import com.demo.talentbridge.repository.CandidateRepository;
+import com.demo.talentbridge.repository.EmployerRepository;
+import com.demo.talentbridge.repository.InterviewRepository;
 import com.demo.talentbridge.service.InterviewService;
 import com.demo.talentbridge.service.NotificationService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -60,18 +66,18 @@ public class InterviewServiceImpl implements InterviewService {
 
         interview = interviewRepository.save(interview);
 
-        // Auto-update application status to INTERVIEW
         if (app.getStatus() == ApplicationStatus.SUBMITTED || app.getStatus() == ApplicationStatus.REVIEWING) {
             app.setStatus(ApplicationStatus.INTERVIEW);
             applicationRepository.save(app);
         }
 
+        // FIX: trỏ thẳng tới interview detail
         notificationService.createNotification(
                 app.getCandidate().getUser(),
                 "Interview Scheduled",
                 "You have an interview scheduled for \"" + app.getJobPost().getTitle() + "\" on " + request.getInterviewAt(),
                 NotificationType.INTERVIEW_SCHEDULED,
-                "/applications/" + app.getId()
+                "/interviews/" + interview.getId()
         );
 
         return map(interview);
@@ -106,7 +112,7 @@ public class InterviewServiceImpl implements InterviewService {
                 "Interview Rescheduled",
                 "Your interview for \"" + interview.getApplication().getJobPost().getTitle() + "\" has been rescheduled to " + request.getInterviewAt(),
                 NotificationType.INTERVIEW_SCHEDULED,
-                "/applications/" + interview.getApplication().getId()
+                "/interviews/" + interview.getId()
         );
 
         return map(interview);
@@ -154,29 +160,68 @@ public class InterviewServiceImpl implements InterviewService {
                 "Interview Cancelled",
                 "Your interview for \"" + interview.getApplication().getJobPost().getTitle() + "\" has been cancelled.",
                 NotificationType.INTERVIEW_SCHEDULED,
-                "/applications/" + interview.getApplication().getId()
+                "/interviews/" + interview.getId()
         );
     }
 
     @Override
-    public List<InterviewResponse> getInterviewsByApplication(Long applicationId) {
+    @Transactional(readOnly = true)
+    public InterviewResponse getInterviewById(Long requesterUserId, Long interviewId) {
+        Interview interview = interviewRepository.findById(interviewId)
+                .orElseThrow(() -> new ResourceNotFoundException("Interview", "id", interviewId));
+
+        ensureCanAccess(requesterUserId, interview.getApplication());
+        return map(interview);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<InterviewResponse> getInterviewsByApplication(Long requesterUserId, Long applicationId) {
+        Application application = applicationRepository.findById(applicationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Application", "id", applicationId));
+
+        ensureCanAccess(requesterUserId, application);
+
         return interviewRepository.findByApplicationId(applicationId).stream()
                 .map(this::map)
                 .collect(Collectors.toList());
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<InterviewResponse> getInterviewsForCandidate(Long candidateUserId) {
-        return interviewRepository.findByApplicationCandidateUserId(candidateUserId).stream()
+        Candidate candidate = candidateRepository.findByUserId(candidateUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("Candidate not found for user: " + candidateUserId));
+
+        return interviewRepository.findByApplicationCandidateUserId(candidate.getUser().getId()).stream()
                 .map(this::map)
                 .collect(Collectors.toList());
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<InterviewResponse> getInterviewsForEmployer(Long employerUserId) {
-        return interviewRepository.findByApplicationJobPostEmployerUserId(employerUserId).stream()
+        Employer employer = employerRepository.findByUserId(employerUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("Employer not found for user: " + employerUserId));
+
+        return interviewRepository.findByApplicationJobPostEmployerUserId(employer.getUser().getId()).stream()
                 .map(this::map)
                 .collect(Collectors.toList());
+    }
+
+    private void ensureCanAccess(Long requesterUserId, Application application) {
+        boolean isCandidateOwner = application.getCandidate() != null
+                && application.getCandidate().getUser() != null
+                && application.getCandidate().getUser().getId().equals(requesterUserId);
+
+        boolean isEmployerOwner = application.getJobPost() != null
+                && application.getJobPost().getEmployer() != null
+                && application.getJobPost().getEmployer().getUser() != null
+                && application.getJobPost().getEmployer().getUser().getId().equals(requesterUserId);
+
+        if (!isCandidateOwner && !isEmployerOwner) {
+            throw new UnauthorizedException("You don't have permission to view this interview");
+        }
     }
 
     private InterviewResponse map(Interview i) {
