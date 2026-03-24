@@ -1,5 +1,6 @@
 package com.demo.talentbridge.dto.response;
 
+import com.demo.talentbridge.enums.AiChatActorType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -12,13 +13,12 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class AiChatResponse {
+public class AiChatMessageResponse {
+    private Long id;
     private Long sessionId;
-    private Long assistantMessageId;
-    private String answer;
-    private String model;
-    private boolean denied;
+    private AiChatActorType senderType;
+    private String content;
+    private String modelName;
     private List<String> usedTools;
-    private Integer toolCallCount;
-    private LocalDateTime generatedAt;
+    private LocalDateTime createdAt;
 }

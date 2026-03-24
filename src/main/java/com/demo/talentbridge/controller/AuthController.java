@@ -1,8 +1,6 @@
 package com.demo.talentbridge.controller;
 
-import com.demo.talentbridge.dto.request.GoogleAuthRequest;
-import com.demo.talentbridge.dto.request.LoginRequest;
-import com.demo.talentbridge.dto.request.RegisterRequest;
+import com.demo.talentbridge.dto.request.*;
 import com.demo.talentbridge.dto.response.ApiResponse;
 import com.demo.talentbridge.dto.response.AuthResponse;
 import com.demo.talentbridge.dto.response.UserResponse;
@@ -39,5 +37,23 @@ public class AuthController {
     public ResponseEntity<AuthResponse> googleLogin(@RequestBody GoogleAuthRequest request) {
         AuthResponse response = authService.googleLogin(request);
         return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<ApiResponse<Void>> forgotPassword(
+            @Valid @RequestBody ForgotPasswordRequest request) {
+        authService.forgotPassword(request);
+        return ResponseEntity.ok(
+                ApiResponse.success("If the email exists, a reset link has been sent.", null)
+        );
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<ApiResponse<Void>> resetPassword(
+            @Valid @RequestBody ResetPasswordRequest request) {
+        authService.resetPassword(request);
+        return ResponseEntity.ok(
+                ApiResponse.success("Password reset successfully.", null)
+        );
     }
 }

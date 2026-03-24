@@ -1,12 +1,15 @@
 package com.demo.talentbridge.service.impl;
 
+import com.demo.talentbridge.dto.request.ForgotPasswordRequest;
 import com.demo.talentbridge.dto.request.GoogleAuthRequest;
 import com.demo.talentbridge.dto.request.LoginRequest;
 import com.demo.talentbridge.dto.request.RegisterRequest;
+import com.demo.talentbridge.dto.request.ResetPasswordRequest;
 import com.demo.talentbridge.dto.response.AuthResponse;
 import com.demo.talentbridge.dto.response.UserResponse;
 import com.demo.talentbridge.entity.Candidate;
 import com.demo.talentbridge.entity.Employer;
+import com.demo.talentbridge.entity.PasswordResetToken;
 import com.demo.talentbridge.entity.User;
 import com.demo.talentbridge.enums.UserRole;
 import com.demo.talentbridge.exception.BadRequestException;
@@ -14,9 +17,11 @@ import com.demo.talentbridge.exception.DuplicateResourceException;
 import com.demo.talentbridge.exception.ResourceNotFoundException;
 import com.demo.talentbridge.repository.CandidateRepository;
 import com.demo.talentbridge.repository.EmployerRepository;
+import com.demo.talentbridge.repository.PasswordResetTokenRepository;
 import com.demo.talentbridge.repository.UserRepository;
 import com.demo.talentbridge.security.JwtTokenProvider;
 import com.demo.talentbridge.service.AuthService;
+import com.demo.talentbridge.service.MailService;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
 import com.google.api.client.http.javanet.NetHttpTransport;
@@ -31,6 +36,13 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.time.LocalDateTime;
+import java.util.HexFormat;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -55,8 +67,20 @@ public class AuthServiceImpl implements AuthService {
     @Autowired
     private JwtTokenProvider jwtTokenProvider;
 
+    @Autowired
+    private MailService mailService;
+
+    @Autowired
+    private PasswordResetTokenRepository passwordResetTokenRepository;
+
     @Value("${spring.security.oauth2.client.registration.google.client-id}")
     private String googleClientId;
+
+    @Value("${app.frontend.reset-password-url}")
+    private String frontendResetUrl;
+
+    @Value("${app.password-reset.token-ttl-minutes:30}")
+    private long passwordResetTokenTtlMinutes;
 
     @Override
     @Transactional
@@ -64,12 +88,10 @@ public class AuthServiceImpl implements AuthService {
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new DuplicateResourceException("Email already in use: " + request.getEmail());
         }
+
         if (userRepository.existsByUsername(request.getUsername())) {
             throw new DuplicateResourceException("Username already taken: " + request.getUsername());
         }
-//        if (request.getRole() == UserRole.ADMIN) {
-//            throw new BadRequestException("Cannot register as ADMIN");
-//        }
 
         User user = User.builder()
                 .username(request.getUsername())
@@ -80,6 +102,7 @@ public class AuthServiceImpl implements AuthService {
                 .active(true)
                 .provider("local")
                 .build();
+
         user = userRepository.save(user);
 
         if (request.getRole() == UserRole.CANDIDATE) {
@@ -91,6 +114,7 @@ public class AuthServiceImpl implements AuthService {
             if (request.getCompanyName() == null || request.getCompanyName().isBlank()) {
                 throw new BadRequestException("Company name is required for employer registration");
             }
+
             Employer employer = Employer.builder()
                     .user(user)
                     .companyName(request.getCompanyName())
@@ -99,6 +123,7 @@ public class AuthServiceImpl implements AuthService {
         }
 
         String token = jwtTokenProvider.generateTokenFromUsername(user.getEmail());
+
         return AuthResponse.builder()
                 .token(token)
                 .tokenType("Bearer")
@@ -114,9 +139,11 @@ public class AuthServiceImpl implements AuthService {
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
         );
+
         SecurityContextHolder.getContext().setAuthentication(authentication);
         User user = (User) authentication.getPrincipal();
         String token = jwtTokenProvider.generateToken(authentication);
+
         return AuthResponse.builder()
                 .token(token)
                 .tokenType("Bearer")
@@ -131,13 +158,16 @@ public class AuthServiceImpl implements AuthService {
     @Transactional
     public AuthResponse googleLogin(GoogleAuthRequest request) {
         try {
-            GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(new NetHttpTransport(), new GsonFactory())
+            GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(
+                    new NetHttpTransport(),
+                    new GsonFactory()
+            )
                     .setAudience(java.util.Collections.singletonList(googleClientId))
                     .build();
 
             GoogleIdToken idToken = verifier.verify(request.getIdToken());
 
-            if(idToken == null){
+            if (idToken == null) {
                 throw new BadRequestException("Invalid idToken");
             }
 
@@ -149,18 +179,25 @@ public class AuthServiceImpl implements AuthService {
             Optional<User> userOptional = userRepository.findByEmail(email);
             User user;
 
-            if(userOptional.isPresent()){
+            if (userOptional.isPresent()) {
                 user = userOptional.get();
                 String currentProvider = user.getProvider() != null ? user.getProvider() : "";
-                if(!currentProvider.contains("google")){
-                    user.setProvider(currentProvider.equals("local") ? "local,google" : currentProvider + ",google");
-                if(user.getAvatarUrl() == null && pictureUrl != null){
-                    user.setAvatarUrl(pictureUrl);
-                    }
-                    user = userRepository.save(user);
+
+                if (!currentProvider.contains("google")) {
+                    user.setProvider(
+                            currentProvider.equals("local")
+                                    ? "local,google"
+                                    : currentProvider + ",google"
+                    );
                 }
+
+                if (user.getAvatarUrl() == null && pictureUrl != null) {
+                    user.setAvatarUrl(pictureUrl);
+                }
+
+                user = userRepository.save(user);
             } else {
-                if(request.getRole() == null || request.getRole() == UserRole.ADMIN){
+                if (request.getRole() == null || request.getRole() == UserRole.ADMIN) {
                     throw new BadRequestException("Invalid role");
                 }
 
@@ -174,15 +211,19 @@ public class AuthServiceImpl implements AuthService {
                         .provider("google")
                         .avatarUrl(pictureUrl)
                         .build();
+
                 user = userRepository.save(user);
 
                 if (request.getRole() == UserRole.CANDIDATE) {
-                    Candidate candidate = Candidate.builder().user(user).build();
+                    Candidate candidate = Candidate.builder()
+                            .user(user)
+                            .build();
                     candidateRepository.save(candidate);
                 } else if (request.getRole() == UserRole.EMPLOYER) {
                     if (request.getCompanyName() == null || request.getCompanyName().isBlank()) {
                         throw new BadRequestException("Tên công ty là bắt buộc đối với Employer");
                     }
+
                     Employer employer = Employer.builder()
                             .user(user)
                             .companyName(request.getCompanyName())
@@ -201,6 +242,7 @@ public class AuthServiceImpl implements AuthService {
                     .email(user.getEmail())
                     .role(user.getRole())
                     .build();
+
         } catch (Exception e) {
             throw new BadRequestException("Invalid Google token");
         }
@@ -211,6 +253,85 @@ public class AuthServiceImpl implements AuthService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "email", email));
         return mapToUserResponse(user);
+    }
+
+    @Override
+    @Transactional
+    public void forgotPassword(ForgotPasswordRequest request) {
+        Optional<User> optionalUser = userRepository.findByEmail(request.getEmail());
+
+        if (optionalUser.isEmpty()) {
+            return;
+        }
+
+        User user = optionalUser.get();
+
+        if (user.getProvider() != null && !user.getProvider().contains("local")) {
+            return;
+        }
+
+        List<PasswordResetToken> activeTokens =
+                passwordResetTokenRepository.findAllByUserAndUsedFalse(user);
+
+        for (PasswordResetToken token : activeTokens) {
+            token.setUsed(true);
+        }
+        passwordResetTokenRepository.saveAll(activeTokens);
+
+        String rawToken = UUID.randomUUID().toString() + UUID.randomUUID();
+        String tokenHash = hashToken(rawToken);
+
+        PasswordResetToken resetToken = new PasswordResetToken();
+        resetToken.setUser(user);
+        resetToken.setTokenHash(tokenHash);
+        resetToken.setExpiresAt(LocalDateTime.now().plusMinutes(passwordResetTokenTtlMinutes));
+        resetToken.setUsed(false);
+
+        passwordResetTokenRepository.save(resetToken);
+
+        String resetLink = frontendResetUrl + "?token="
+                + URLEncoder.encode(rawToken, StandardCharsets.UTF_8);
+
+        mailService.sendPasswordResetEmail(
+                user.getEmail(),
+                user.getFullName() != null ? user.getFullName() : user.getUsername(),
+                resetLink
+        );
+    }
+
+    @Override
+    @Transactional
+    public void resetPassword(ResetPasswordRequest request) {
+        if (!request.getNewPassword().equals(request.getConfirmPassword())) {
+            throw new BadRequestException("Password confirmation does not match");
+        }
+
+        String tokenHash = hashToken(request.getToken());
+
+        PasswordResetToken resetToken = passwordResetTokenRepository
+                .findByTokenHashAndUsedFalse(tokenHash)
+                .orElseThrow(() -> new BadRequestException("Invalid or expired reset token"));
+
+        if (resetToken.getExpiresAt().isBefore(LocalDateTime.now())) {
+            throw new BadRequestException("Reset token has expired");
+        }
+
+        User user = resetToken.getUser();
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
+
+        resetToken.setUsed(true);
+        passwordResetTokenRepository.save(resetToken);
+    }
+
+    private String hashToken(String rawToken) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(rawToken.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 algorithm not available", e);
+        }
     }
 
     private UserResponse mapToUserResponse(User user) {
