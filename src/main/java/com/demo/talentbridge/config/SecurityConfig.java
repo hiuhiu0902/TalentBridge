@@ -90,17 +90,13 @@ public class SecurityConfig {
                             "/swagger-resources/**",
                             "/webjars/**"
                     ).permitAll()
-                // Public endpoints
-//                .requestMatchers("/api/v1/auth/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/jobs/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/categories/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/skills/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/users/*/profile").permitAll()
-                // WebSocket
+                .requestMatchers(HttpMethod.GET, "/api/v1/directory/**").permitAll()
                 .requestMatchers("/ws/**").permitAll()
-                // Admin only
                 .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
-                // All other requests need authentication
                 .anyRequest().authenticated()
             )
             .authenticationProvider(authenticationProvider())

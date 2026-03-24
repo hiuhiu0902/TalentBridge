@@ -1,30 +1,62 @@
 package com.demo.talentbridge.repository;
 
 import com.demo.talentbridge.entity.User;
-import com.demo.talentbridge.enums.UserRole;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Optional;
 
-@Repository
 public interface UserRepository extends JpaRepository<User, Long> {
-    Optional<User> findByEmail(String email);
-    Optional<User> findByUsername(String username);
+
     boolean existsByEmail(String email);
     boolean existsByUsername(String username);
-    List<User> findByRole(UserRole role);
-    List<User> findByActiveTrue();
-    @Query("SELECT u FROM User u WHERE u.active = true AND " +
-            "(LOWER(u.username) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
-            "LOWER(u.email) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
-            "LOWER(u.fullName) LIKE LOWER(CONCAT('%', :keyword, '%')))")
+    Optional<User> findByEmail(String email);
+    Optional<User> findByUsername(String username);
+
+    @Query("""
+        select distinct u
+        from User u
+        left join u.employer e
+        where u.active = true
+          and (
+                lower(u.username) like lower(concat('%', :keyword, '%'))
+                or lower(coalesce(u.fullName, '')) like lower(concat('%', :keyword, '%'))
+                or lower(u.email) like lower(concat('%', :keyword, '%'))
+                or lower(coalesce(e.companyName, '')) like lower(concat('%', :keyword, '%'))
+          )
+        order by u.createdAt desc
+    """)
+    List<User> searchUsers(@Param("keyword") String keyword);
+
+    @Query("""
+        select distinct u
+        from User u
+        left join u.employer e
+        where u.active = true
+          and (
+                lower(u.username) like lower(concat('%', :keyword, '%'))
+                or lower(coalesce(u.fullName, '')) like lower(concat('%', :keyword, '%'))
+                or lower(u.email) like lower(concat('%', :keyword, '%'))
+                or lower(coalesce(e.companyName, '')) like lower(concat('%', :keyword, '%'))
+          )
+    """)
     Page<User> searchUsers(@Param("keyword") String keyword, Pageable pageable);
 
-    User findUserByEmail(String email);
+    List<User> findTop20ByActiveTrueOrderByCreatedAtDesc();
+
+    List<User> findTop50ByActiveTrueAndIdNotOrderByCreatedAtDesc(Long currentUserId);
+
+    @Query("""
+        select u
+        from User u
+        left join fetch u.employer
+        left join fetch u.candidate
+        where u.id = :userId
+          and u.active = true
+    """)
+    Optional<User> findActiveProfileById(@Param("userId") Long userId);
 }

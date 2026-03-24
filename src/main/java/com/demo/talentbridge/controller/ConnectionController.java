@@ -34,8 +34,10 @@ public class ConnectionController {
     }
 
     @GetMapping("/{userId}/followers")
-    public ResponseEntity<ApiResponse<List<FollowResponse>>> getFollowers(@PathVariable Long userId) {
-        return ResponseEntity.ok(ApiResponse.success(followService.getFollowers(userId)));
+    public ResponseEntity<ApiResponse<List<FollowResponse>>> getFollowers(
+            @AuthenticationPrincipal User currentUser,
+            @PathVariable Long userId) {
+        return ResponseEntity.ok(ApiResponse.success(followService.getFollowers(currentUser.getId(), userId)));
     }
 
     @GetMapping("/{userId}/followers/count")
@@ -44,8 +46,10 @@ public class ConnectionController {
     }
 
     @GetMapping("/{userId}/following")
-    public ResponseEntity<ApiResponse<List<FollowResponse>>> getFollowing(@PathVariable Long userId) {
-        return ResponseEntity.ok(ApiResponse.success(followService.getFollowing(userId)));
+    public ResponseEntity<ApiResponse<List<FollowResponse>>> getFollowing(
+            @AuthenticationPrincipal User currentUser,
+            @PathVariable Long userId) {
+        return ResponseEntity.ok(ApiResponse.success(followService.getFollowing(currentUser.getId(), userId)));
     }
 
     @GetMapping("/{userId}/following/count")
@@ -57,5 +61,12 @@ public class ConnectionController {
     public ResponseEntity<ApiResponse<Boolean>> isFollowing(
             @AuthenticationPrincipal User currentUser, @PathVariable Long userId) {
         return ResponseEntity.ok(ApiResponse.success(followService.isFollowing(currentUser.getId(), userId)));
+    }
+
+    @GetMapping("/{userId}/is-mutual")
+    public ResponseEntity<ApiResponse<Boolean>> isMutualFollow(
+            @AuthenticationPrincipal User currentUser,
+            @PathVariable Long userId) {
+        return ResponseEntity.ok(ApiResponse.success(followService.isMutualFollow(currentUser.getId(), userId)));
     }
 }

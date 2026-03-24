@@ -3,6 +3,7 @@ package com.demo.talentbridge.service.impl;
 import com.demo.talentbridge.dto.request.JobPostRequest;
 import com.demo.talentbridge.dto.request.JobSkillRequest;
 import com.demo.talentbridge.dto.response.JobPostResponse;
+import com.demo.talentbridge.dto.response.JobPosterResponse;
 import com.demo.talentbridge.dto.response.SkillResponse;
 import com.demo.talentbridge.entity.*;
 import com.demo.talentbridge.enums.JobStatus;
@@ -12,11 +13,15 @@ import com.demo.talentbridge.exception.BadRequestException;
 import com.demo.talentbridge.exception.ResourceNotFoundException;
 import com.demo.talentbridge.exception.UnauthorizedException;
 import com.demo.talentbridge.repository.*;
+import com.demo.talentbridge.service.FollowService;
 import com.demo.talentbridge.service.JobPostService;
 import com.demo.talentbridge.service.NotificationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -40,6 +45,12 @@ public class JobPostServiceImpl implements JobPostService {
 
     @Autowired
     private ApplicationRepository applicationRepository;
+
+    @Autowired
+    private SavedJobRepository savedJobRepository;
+
+    @Autowired
+    private FollowService followService;
 
     @Autowired
     private NotificationService notificationService;
@@ -107,7 +118,6 @@ public class JobPostServiceImpl implements JobPostService {
         jobPost.setJobType(request.getJobType());
         jobPost.setExperienceLevel(request.getExperienceLevel());
         jobPost.setExpiredAt(request.getExpiredAt());
-        // Reset to pending approval after edit
         jobPost.setStatus(JobStatus.PENDING_APPROVAL);
 
         if (request.getCategoryId() != null) {
@@ -170,7 +180,6 @@ public class JobPostServiceImpl implements JobPostService {
 
     @Override
     public Page<JobPostResponse> getJobsByCategory(Long categoryId, Pageable pageable) {
-        // Validate category exists
         categoryRepository.findById(categoryId)
                 .orElseThrow(() -> new ResourceNotFoundException("Category", "id", categoryId));
         return jobPostRepository.findByCategoryId(categoryId, pageable)
@@ -196,11 +205,9 @@ public class JobPostServiceImpl implements JobPostService {
 
     @Override
     public List<JobPostResponse> getJobFeed(Long candidateUserId, Pageable pageable) {
-        // Priority: jobs from followed employers first
         List<JobPost> followedJobs = jobPostRepository.findJobsFromFollowedEmployers(candidateUserId);
         List<Long> followedJobIds = followedJobs.stream().map(JobPost::getId).collect(Collectors.toList());
 
-        // Then fill with other active jobs
         Page<JobPost> allActiveJobs = jobPostRepository.findActiveFeed(pageable);
         List<JobPost> otherJobs = allActiveJobs.getContent().stream()
                 .filter(j -> !followedJobIds.contains(j.getId()))
@@ -233,11 +240,9 @@ public class JobPostServiceImpl implements JobPostService {
         job.setRejectionReason(null);
         job = jobPostRepository.save(job);
 
-        // Notify followers of new job
         notificationService.notifyFollowersOfNewJob(
                 job.getEmployer().getUser().getId(), job.getId(), job.getTitle());
 
-        // Notify employer
         notificationService.createNotification(
                 job.getEmployer().getUser(),
                 "Job Post Approved",
@@ -263,7 +268,6 @@ public class JobPostServiceImpl implements JobPostService {
         job.setRejectionReason(rejectionReason);
         job = jobPostRepository.save(job);
 
-        // Notify employer
         notificationService.createNotification(
                 job.getEmployer().getUser(),
                 "Job Post Rejected",
@@ -274,8 +278,6 @@ public class JobPostServiceImpl implements JobPostService {
 
         return mapToResponse(job);
     }
-
-    // ─── Helpers ────────────────────────────────────────────────────────────────
 
     private List<JobSkill> buildJobSkills(List<JobSkillRequest> skillRequests, JobPost jobPost) {
         return skillRequests.stream()
@@ -295,6 +297,8 @@ public class JobPostServiceImpl implements JobPostService {
     }
 
     private JobPostResponse mapToResponse(JobPost jobPost) {
+        Long currentUserId = resolveCurrentUserId();
+
         List<SkillResponse> skills = jobPost.getJobSkills().stream()
                 .map(js -> SkillResponse.builder()
                         .skillName(js.getSkillName())
@@ -325,13 +329,57 @@ public class JobPostServiceImpl implements JobPostService {
                 .categoryName(jobPost.getCategory() != null ? jobPost.getCategory().getName() : null)
                 .skills(skills)
                 .applicationCount((int) appCount)
+                .savedByCurrentUser(isSavedByCurrentUser(currentUserId, jobPost.getId()))
+                .poster(buildPosterResponse(jobPost, currentUserId))
                 .build();
     }
 
-    /**
-     * Converts enum name to a human-readable display name.
-     * e.g. SPRING_BOOT -> "Spring Boot", NODEJS -> "Node.js"
-     */
+    private JobPosterResponse buildPosterResponse(JobPost jobPost, Long currentUserId) {
+        User poster = jobPost.getEmployer().getUser();
+        boolean isAuthenticated = currentUserId != null;
+        boolean isMe = isAuthenticated && currentUserId.equals(poster.getId());
+        boolean isFollowing = isAuthenticated && !isMe && followService.isFollowing(currentUserId, poster.getId());
+        boolean followsYou = isAuthenticated && !isMe && followService.isFollowing(poster.getId(), currentUserId);
+        boolean isMutualFollow = isFollowing && followsYou;
+
+        return JobPosterResponse.builder()
+                .userId(poster.getId())
+                .employerId(jobPost.getEmployer().getId())
+                .username(poster.getUsername())
+                .fullName(poster.getFullName())
+                .avatarUrl(poster.getAvatarUrl())
+                .companyName(jobPost.getEmployer().getCompanyName())
+                .companyLogoUrl(jobPost.getEmployer().getLogoUrl())
+                .role(poster.getRole())
+                .isFollowing(isFollowing)
+                .followsYou(followsYou)
+                .isMutualFollow(isMutualFollow)
+                .canMessage(!isMe && isMutualFollow)
+                .isMe(isMe)
+                .build();
+    }
+
+    private boolean isSavedByCurrentUser(Long currentUserId, Long jobPostId) {
+        if (currentUserId == null) {
+            return false;
+        }
+        return savedJobRepository.existsByCandidateIdAndJobPostId(currentUserId, jobPostId);
+    }
+
+    private Long resolveCurrentUserId() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated() || authentication instanceof AnonymousAuthenticationToken) {
+            return null;
+        }
+
+        Object principal = authentication.getPrincipal();
+        if (principal instanceof User user) {
+            return user.getId();
+        }
+
+        return null;
+    }
+
     private String formatSkillName(SkillName skillName) {
         if (skillName == null) return null;
         return switch (skillName) {

@@ -36,4 +36,5 @@ public class JobPostResponse {
     private List<SkillResponse> skills;
     private Integer applicationCount;
     private boolean savedByCurrentUser;
+    private JobPosterResponse poster;
 }

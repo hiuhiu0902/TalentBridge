@@ -17,10 +17,10 @@ public interface FollowConnectionRepository extends JpaRepository<FollowConnecti
 
     Optional<FollowConnection> findByFollowerIdAndFollowedId(Long followerId, Long followedId);
 
-    @EntityGraph(attributePaths = {"follower", "followed"})
+    @EntityGraph(attributePaths = {"follower", "followed", "follower.employer", "followed.employer"})
     List<FollowConnection> findByFollowerIdOrderByFollowedAtDesc(Long followerId);
 
-    @EntityGraph(attributePaths = {"follower", "followed"})
+    @EntityGraph(attributePaths = {"follower", "followed", "follower.employer", "followed.employer"})
     List<FollowConnection> findByFollowedIdOrderByFollowedAtDesc(Long followedId);
 
     long countByFollowedId(Long followedId);

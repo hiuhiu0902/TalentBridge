@@ -6,5 +6,6 @@ public enum NotificationType {
     APPLICATION_STATUS_CHANGED,
     NEW_MESSAGE,
     INTERVIEW_SCHEDULED,
+    FOLLOWED_YOU,
     SYSTEM
 }

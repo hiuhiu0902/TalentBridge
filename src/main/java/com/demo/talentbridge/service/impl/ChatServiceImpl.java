@@ -12,12 +12,14 @@ import com.demo.talentbridge.repository.ChatMessageRepository;
 import com.demo.talentbridge.repository.ChatRoomRepository;
 import com.demo.talentbridge.repository.UserRepository;
 import com.demo.talentbridge.service.ChatService;
+import com.demo.talentbridge.service.FollowService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -34,6 +36,9 @@ public class ChatServiceImpl implements ChatService {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    private FollowService followService;
+
     @Override
     @Transactional
     public ChatRoomResponse getOrCreateRoom(Long userOneId, Long userTwoId) {
@@ -48,23 +53,26 @@ public class ChatServiceImpl implements ChatService {
         Long firstUserId = Math.min(userOneId, userTwoId);
         Long secondUserId = Math.max(userOneId, userTwoId);
 
-        return chatRoomRepository.findByUsers(firstUserId, secondUserId)
-                .map(room -> mapRoomToResponse(room, userOneId))
-                .orElseGet(() -> {
-                    User firstUser = userRepository.findById(firstUserId)
-                            .orElseThrow(() -> new ResourceNotFoundException("User", "id", firstUserId));
-                    User secondUser = userRepository.findById(secondUserId)
-                            .orElseThrow(() -> new ResourceNotFoundException("User", "id", secondUserId));
+        Optional<ChatRoom> existingRoom = chatRoomRepository.findByUsers(firstUserId, secondUserId);
+        if (existingRoom.isPresent()) {
+            return mapRoomToResponse(existingRoom.get(), userOneId);
+        }
 
-                    ChatRoom room = ChatRoom.builder()
-                            .userOne(firstUser)
-                            .userTwo(secondUser)
-                            .createdAt(LocalDateTime.now())
-                            .lastMessageAt(null)
-                            .build();
+        ensureMutualFollow(userOneId, userTwoId);
 
-                    return mapRoomToResponse(chatRoomRepository.save(room), userOneId);
-                });
+        User firstUser = userRepository.findById(firstUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", firstUserId));
+        User secondUser = userRepository.findById(secondUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", secondUserId));
+
+        ChatRoom room = ChatRoom.builder()
+                .userOne(firstUser)
+                .userTwo(secondUser)
+                .createdAt(LocalDateTime.now())
+                .lastMessageAt(null)
+                .build();
+
+        return mapRoomToResponse(chatRoomRepository.save(room), userOneId);
     }
 
     @Override
@@ -92,6 +100,10 @@ public class ChatServiceImpl implements ChatService {
     public ChatMessageResponse sendMessage(Long senderId, Long roomId, String content) {
         ChatRoom room = requireRoomMember(senderId, roomId);
         User sender = requireUser(senderId);
+        Long recipientId = resolveOtherUserId(room, senderId);
+
+        ensureMutualFollow(senderId, recipientId);
+
         String normalizedContent = normalizeMessageContent(content);
 
         ChatMessage message = ChatMessage.builder()
@@ -121,9 +133,7 @@ public class ChatServiceImpl implements ChatService {
     @Transactional(readOnly = true)
     public Long resolveRecipientId(Long userId, Long roomId) {
         ChatRoom room = requireRoomMember(userId, roomId);
-        return room.getUserOne().getId().equals(userId)
-                ? room.getUserTwo().getId()
-                : room.getUserOne().getId();
+        return resolveOtherUserId(room, userId);
     }
 
     private User requireUser(Long userId) {
@@ -145,6 +155,18 @@ public class ChatServiceImpl implements ChatService {
         }
 
         return room;
+    }
+
+    private void ensureMutualFollow(Long userOneId, Long userTwoId) {
+        if (!followService.isMutualFollow(userOneId, userTwoId)) {
+            throw new BadRequestException("Only users who follow each other can chat");
+        }
+    }
+
+    private Long resolveOtherUserId(ChatRoom room, Long currentUserId) {
+        return room.getUserOne().getId().equals(currentUserId)
+                ? room.getUserTwo().getId()
+                : room.getUserOne().getId();
     }
 
     private String normalizeMessageContent(String content) {
@@ -173,14 +195,29 @@ public class ChatServiceImpl implements ChatService {
                 ? 0
                 : Math.toIntExact(chatMessageRepository.countByChatRoomIdAndIsReadFalseAndSenderIdNot(room.getId(), currentUserId));
 
+        User otherUser = null;
+        boolean isMutualFollow = false;
+        if (currentUserId != null) {
+            otherUser = room.getUserOne().getId().equals(currentUserId) ? room.getUserTwo() : room.getUserOne();
+            isMutualFollow = followService.isMutualFollow(currentUserId, otherUser.getId());
+        }
+
         return ChatRoomResponse.builder()
                 .id(room.getId())
                 .userOneId(room.getUserOne().getId())
                 .userOneUsername(room.getUserOne().getUsername())
+                .userOneFullName(room.getUserOne().getFullName())
                 .userOneAvatar(room.getUserOne().getAvatarUrl())
                 .userTwoId(room.getUserTwo().getId())
                 .userTwoUsername(room.getUserTwo().getUsername())
+                .userTwoFullName(room.getUserTwo().getFullName())
                 .userTwoAvatar(room.getUserTwo().getAvatarUrl())
+                .otherUserId(otherUser != null ? otherUser.getId() : null)
+                .otherUsername(otherUser != null ? otherUser.getUsername() : null)
+                .otherFullName(otherUser != null ? otherUser.getFullName() : null)
+                .otherAvatar(otherUser != null ? otherUser.getAvatarUrl() : null)
+                .isMutualFollow(isMutualFollow)
+                .canMessage(otherUser != null && isMutualFollow)
                 .createdAt(room.getCreatedAt())
                 .lastMessageAt(room.getLastMessageAt())
                 .lastMessage(lastMessage)
