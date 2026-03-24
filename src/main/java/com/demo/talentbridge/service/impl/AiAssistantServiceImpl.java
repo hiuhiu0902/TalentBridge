@@ -47,9 +47,15 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import static io.jsonwebtoken.lang.Strings.hasText;
+
 @Service
 public class AiAssistantServiceImpl implements AiAssistantService {
-
+    private static final Logger log = LoggerFactory.getLogger(AiAssistantServiceImpl.class);
+    private static final int MAX_RECOVERY_CONTEXT_MESSAGES = 8;
     private static final int MAX_HISTORY_MESSAGES = 10;
     private static final int MAX_OUTPUT_TOKENS = 700;
 
@@ -177,30 +183,234 @@ public class AiAssistantServiceImpl implements AiAssistantService {
         touchSession(session, normalizedMessage);
 
         AiChatResponse response;
+        String providerResponseId = null;
+
         if (aiPromptGuardService.isDeniedPrompt(normalizedMessage)) {
             response = deniedResponse(session.getId());
         } else if (!isAiAvailable()) {
             response = unavailableResponse(session.getId());
         } else {
             try {
-                response = executeAiConversation(
-                        user,
-                        session,
-                        buildInputMessages(user, session),
-                        buildToolsForRole(user.getRole())
-                );
+                AiTurnResult turnResult = executeSessionConversation(user, session, normalizedMessage);
+                response = turnResult.response();
+                providerResponseId = turnResult.providerResponseId();
             } catch (UnauthorizedException ex) {
+                log.warn("AI session unauthorized. userId={}, sessionId={}", userId, sessionId, ex);
                 response = deniedResponse(session.getId());
             } catch (Exception ex) {
+                log.error("AI session failed. userId={}, sessionId={}", userId, sessionId, ex);
                 response = unavailableResponse(session.getId());
             }
         }
 
-        AiChatMessage assistantMessage = persistAssistantMessage(session, response);
+        AiChatMessage assistantMessage = persistAssistantMessage(session, response, providerResponseId);
         response.setAssistantMessageId(assistantMessage.getId());
         return response;
     }
+    private record AiTurnResult(AiChatResponse response, String providerResponseId) {
+    }
+    private AiTurnResult executeSessionConversation(User user, AiChatSession session, String newUserMessage)
+            throws IOException, InterruptedException {
 
+        ArrayNode tools = buildToolsForRole(user.getRole());
+        JsonNode currentResponse = startOrRecoverSessionConversation(user, session, newUserMessage, tools);
+
+        List<String> usedTools = new ArrayList<>();
+        Set<String> usedToolSet = new HashSet<>();
+        int toolCallCount = 0;
+
+        while (toolCallCount < Math.max(1, maxToolRounds)) {
+            ArrayNode functionCalls = extractFunctionCalls(currentResponse);
+            if (functionCalls.isEmpty()) {
+                String answer = extractAssistantText(currentResponse);
+                if (answer == null || answer.isBlank()) {
+                    answer = unavailableMessage;
+                }
+
+                return new AiTurnResult(
+                        AiChatResponse.builder()
+                                .sessionId(session.getId())
+                                .answer(answer)
+                                .model(aiModel)
+                                .denied(answer.trim().equals(outOfScopeMessage.trim()))
+                                .usedTools(usedTools)
+                                .toolCallCount(toolCallCount)
+                                .generatedAt(LocalDateTime.now())
+                                .build(),
+                        currentResponse.path("id").asText(null)
+                );
+            }
+
+            ArrayNode outputs = objectMapper.createArrayNode();
+            Iterator<JsonNode> iterator = functionCalls.iterator();
+
+            while (iterator.hasNext()) {
+                if (toolCallCount >= Math.max(1, maxToolRounds)) {
+                    break;
+                }
+
+                JsonNode functionCall = iterator.next();
+                String toolName = functionCall.path("name").asText();
+                String callId = functionCall.path("call_id").asText();
+
+                if (toolName == null || toolName.isBlank() || callId == null || callId.isBlank()) {
+                    throw new BadRequestException("Invalid function call payload");
+                }
+
+                ensureToolAllowed(user, toolName);
+
+                JsonNode arguments = parseArguments(functionCall.path("arguments").asText("{}"));
+                String toolOutput = executeTool(user, toolName, arguments);
+                outputs.add(functionOutput(callId, toolOutput));
+
+                if (usedToolSet.add(toolName)) {
+                    usedTools.add(toolName);
+                }
+                toolCallCount++;
+            }
+
+            if (outputs.isEmpty()) {
+                break;
+            }
+
+            ObjectNode followUpRequest = objectMapper.createObjectNode();
+            followUpRequest.put("model", aiModel);
+            followUpRequest.put("previous_response_id", currentResponse.path("id").asText());
+            followUpRequest.set("input", outputs);
+            followUpRequest.set("tools", tools);
+            followUpRequest.put("tool_choice", "auto");
+            followUpRequest.put("parallel_tool_calls", false);
+            followUpRequest.put("max_output_tokens", MAX_OUTPUT_TOKENS);
+
+            currentResponse = callResponsesApi(followUpRequest);
+        }
+
+        return new AiTurnResult(unavailableResponse(session.getId()), null);
+    }
+    private JsonNode startOrRecoverSessionConversation(
+            User user,
+            AiChatSession session,
+            String newUserMessage,
+            ArrayNode tools
+    ) throws IOException, InterruptedException {
+
+        if (hasText(session.getProviderLastResponseId())) {
+            try {
+                ObjectNode continuationRequest = objectMapper.createObjectNode();
+                continuationRequest.put("model", aiModel);
+                continuationRequest.put("previous_response_id", session.getProviderLastResponseId());
+                continuationRequest.set("input", singleUserInput(newUserMessage));
+                continuationRequest.set("tools", tools);
+                continuationRequest.put("tool_choice", "auto");
+                continuationRequest.put("parallel_tool_calls", false);
+                continuationRequest.put("max_output_tokens", MAX_OUTPUT_TOKENS);
+
+                return callResponsesApi(continuationRequest);
+            } catch (IOException ex) {
+                if (isRecoverablePreviousResponseError(ex)) {
+                    log.warn("Recovering broken AI session. sessionId={}, previousResponseId={}",
+                            session.getId(), session.getProviderLastResponseId());
+
+                    session.setProviderLastResponseId(null);
+                    aiChatSessionRepository.save(session);
+                } else {
+                    throw ex;
+                }
+            }
+        }
+
+        ObjectNode bootstrapRequest = objectMapper.createObjectNode();
+        bootstrapRequest.put("model", aiModel);
+        bootstrapRequest.set("input", buildBootstrapInput(user, session, newUserMessage));
+        bootstrapRequest.set("tools", tools);
+        bootstrapRequest.put("tool_choice", "auto");
+        bootstrapRequest.put("parallel_tool_calls", false);
+        bootstrapRequest.put("max_output_tokens", MAX_OUTPUT_TOKENS);
+
+        return callResponsesApi(bootstrapRequest);
+    }
+    private ArrayNode buildBootstrapInput(User user, AiChatSession session, String newUserMessage) {
+        ArrayNode input = objectMapper.createArrayNode();
+        input.add(messageNode("system", buildSystemPrompt(user)));
+
+        String recoveryContext = buildRecoveryContext(session, newUserMessage);
+        if (recoveryContext != null && !recoveryContext.isBlank()) {
+            input.add(messageNode("system", recoveryContext));
+        }
+
+        input.add(messageNode("user", newUserMessage));
+        return input;
+    }
+    private ArrayNode singleUserInput(String message) {
+        ArrayNode input = objectMapper.createArrayNode();
+        input.add(messageNode("user", message));
+        return input;
+    }
+    private String buildRecoveryContext(AiChatSession session, String latestUserMessage) {
+        List<AiChatMessage> messages = aiChatMessageRepository.findBySessionIdOrderByCreatedAtAsc(session.getId());
+        if (messages.isEmpty()) {
+            return null;
+        }
+
+        int endExclusive = messages.size();
+        AiChatMessage lastMessage = messages.get(messages.size() - 1);
+        if (lastMessage.getSenderType() == AiChatActorType.USER
+                && latestUserMessage.equals(lastMessage.getContent())) {
+            endExclusive--;
+        }
+
+        if (endExclusive <= 0) {
+            return null;
+        }
+
+        int startIndex = Math.max(0, endExclusive - MAX_RECOVERY_CONTEXT_MESSAGES);
+        List<String> lines = new ArrayList<>();
+
+        for (int i = startIndex; i < endExclusive; i++) {
+            AiChatMessage message = messages.get(i);
+            String content = message.getContent() == null ? "" : message.getContent().trim();
+            if (content.isBlank()) {
+                continue;
+            }
+
+            if (message.getSenderType() == AiChatActorType.ASSISTANT && isSyntheticAssistantMessage(content)) {
+                continue;
+            }
+
+            String prefix = message.getSenderType() == AiChatActorType.USER ? "User: " : "Assistant: ";
+            String normalized = content.replaceAll("\\s+", " ");
+            lines.add(prefix + abbreviate(normalized, 500));
+        }
+
+        if (lines.isEmpty()) {
+            return null;
+        }
+
+        return "Conversation context from previous turns. Use it only as background context. " +
+                "Answer the latest user message directly.\n" +
+                String.join("\n", lines);
+    }
+    private boolean isSyntheticAssistantMessage(String content) {
+        String normalized = content == null ? "" : content.trim();
+        return normalized.equals(unavailableMessage.trim())
+                || normalized.equals(outOfScopeMessage.trim());
+    }
+    private boolean isRecoverablePreviousResponseError(IOException ex) {
+        String message = ex.getMessage();
+        if (message == null || message.isBlank()) {
+            return false;
+        }
+
+        String normalized = message.toLowerCase(Locale.ROOT);
+        return normalized.contains("previous_response_id")
+                || normalized.contains("response not found")
+                || normalized.contains("does not exist")
+                || normalized.contains("not found")
+                || normalized.contains("invalid_request_error");
+    }
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
     private AiChatResponse executeAiConversation(User user, AiChatSession session, ArrayNode input, ArrayNode tools) throws IOException, InterruptedException {
         ObjectNode firstRequest = objectMapper.createObjectNode();
         firstRequest.put("model", aiModel);
@@ -338,9 +548,12 @@ public class AiAssistantServiceImpl implements AiAssistantService {
                 .build();
 
         HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
         if (response.statusCode() >= 400) {
-            throw new IOException("OpenAI API error: " + response.body());
+            log.error("OpenAI responses API error. status={}, body={}", response.statusCode(), response.body());
+            throw new IOException("OpenAI API error. status=" + response.statusCode() + ", body=" + response.body());
         }
+
         return objectMapper.readTree(response.body());
     }
 
@@ -680,16 +893,24 @@ public class AiAssistantServiceImpl implements AiAssistantService {
                 .build());
     }
 
-    private AiChatMessage persistAssistantMessage(AiChatSession session, AiChatResponse response) {
-        AiChatMessage assistantMessage = aiChatMessageRepository.save(AiChatMessage.builder()
-                .session(session)
-                .senderType(AiChatActorType.ASSISTANT)
-                .content(response.getAnswer())
-                .modelName(response.getModel())
-                .usedTools(joinTools(response.getUsedTools()))
-                .build());
+    private AiChatMessage persistAssistantMessage(AiChatSession session, AiChatResponse response, String providerResponseId) {
+        AiChatMessage assistantMessage = aiChatMessageRepository.save(
+                AiChatMessage.builder()
+                        .session(session)
+                        .senderType(AiChatActorType.ASSISTANT)
+                        .content(response.getAnswer())
+                        .modelName(response.getModel())
+                        .usedTools(joinTools(response.getUsedTools()))
+                        .build()
+        );
+
         session.setLastMessageAt(assistantMessage.getCreatedAt());
         session.setUpdatedAt(LocalDateTime.now());
+
+        if (hasText(providerResponseId)) {
+            session.setProviderLastResponseId(providerResponseId);
+        }
+
         aiChatSessionRepository.save(session);
         return assistantMessage;
     }

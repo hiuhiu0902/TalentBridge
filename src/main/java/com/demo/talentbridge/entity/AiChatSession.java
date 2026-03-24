@@ -26,6 +26,8 @@ public class AiChatSession {
 
     @Column(name = "title", length = 255)
     private String title;
+    @Column(name = "provider_last_response_id", length = 120)
+    private String providerLastResponseId;
 
     @Column(name = "role_snapshot", nullable = false, length = 20)
     private String roleSnapshot;
