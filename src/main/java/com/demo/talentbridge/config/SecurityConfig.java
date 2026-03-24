@@ -79,6 +79,11 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                     .requestMatchers(
+                            "/api/v1/auth/register",
+                            "/api/v1/auth/login",
+                            "/api/v1/auth/google",
+                            "/api/v1/auth/forgot-password",
+                            "/api/v1/auth/reset-password",
                             "/v3/api-docs/**",
                             "/swagger-ui/**",
                             "/swagger-ui.html",
@@ -86,7 +91,7 @@ public class SecurityConfig {
                             "/webjars/**"
                     ).permitAll()
                 // Public endpoints
-                .requestMatchers("/api/v1/auth/**").permitAll()
+//                .requestMatchers("/api/v1/auth/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/jobs/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/categories/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/skills/**").permitAll()

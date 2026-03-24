@@ -7,7 +7,7 @@ import com.demo.talentbridge.dto.response.UserResponse;
 public interface AuthService {
     AuthResponse register(RegisterRequest request);
     AuthResponse login(LoginRequest request);
-    UserResponse getCurrentUser(String email);
+    UserResponse getCurrentUser(Long userId);
     AuthResponse googleLogin(GoogleAuthRequest request);
 
     void forgotPassword(ForgotPasswordRequest request);

@@ -22,7 +22,6 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/v1/categories")
 @SecurityRequirement(name = "bearerAuth")
-@PreAuthorize(" hasRole('ADMIN')") // Allow both USER and ADMIN to access these endpoints
 public class CategoryController {
 
     @Autowired

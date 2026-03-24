@@ -4,19 +4,20 @@ import com.demo.talentbridge.dto.request.*;
 import com.demo.talentbridge.dto.response.ApiResponse;
 import com.demo.talentbridge.dto.response.AuthResponse;
 import com.demo.talentbridge.dto.response.UserResponse;
+import com.demo.talentbridge.entity.User;
 import com.demo.talentbridge.service.AuthService;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/v1/auth")
 public class AuthController {
-    @Autowired private AuthService authService;
+
+    @Autowired
+    private AuthService authService;
 
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<AuthResponse>> register(@Valid @RequestBody RegisterRequest request) {
@@ -28,15 +29,25 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.success("Login successful", authService.login(request)));
     }
 
-    @SecurityRequirement(name = "bearerAuth")
-    @GetMapping("/me")
-    public ResponseEntity<ApiResponse<UserResponse>> getCurrentUser(@AuthenticationPrincipal UserDetails userDetails) {
-        return ResponseEntity.ok(ApiResponse.success(authService.getCurrentUser(userDetails.getUsername())));
-    }
     @PostMapping("/google")
     public ResponseEntity<AuthResponse> googleLogin(@RequestBody GoogleAuthRequest request) {
         AuthResponse response = authService.googleLogin(request);
         return ResponseEntity.ok(response);
+    }
+
+    @SecurityRequirement(name = "bearerAuth")
+    @GetMapping("/me")
+    public ResponseEntity<ApiResponse<UserResponse>> getCurrentUser(
+            @org.springframework.security.core.annotation.AuthenticationPrincipal User currentUser
+    ) {
+        if (currentUser == null) {
+            return ResponseEntity.status(401)
+                    .body(ApiResponse.error("Unauthorized"));
+        }
+
+        return ResponseEntity.ok(
+                ApiResponse.success(authService.getCurrentUser(currentUser.getId()))
+        );
     }
 
     @PostMapping("/forgot-password")
