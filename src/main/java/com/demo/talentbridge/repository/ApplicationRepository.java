@@ -28,4 +28,44 @@ public interface ApplicationRepository extends JpaRepository<Application, Long> 
 
     @Query("SELECT COUNT(a) FROM Application a WHERE a.jobPost.id = :jobPostId")
     long countByJobPostId(@Param("jobPostId") Long jobPostId);
+    @Query("""
+    select distinct a
+    from Application a
+    join fetch a.candidate c
+    join fetch c.user cu
+    join fetch a.jobPost jp
+    join fetch jp.employer e
+    where c.id = :candidateId
+""")
+    List<Application> findByCandidateIdWithDetails(@Param("candidateId") Long candidateId);
+    @Query("""
+    select distinct a
+    from Application a
+    join fetch a.candidate c
+    join fetch c.user cu
+    join fetch a.jobPost jp
+    join fetch jp.employer e
+    where e.id = :employerId
+""")
+    List<Application> findByEmployerIdWithDetails(@Param("employerId") Long employerId);
+    @Query("""
+    select distinct a
+    from Application a
+    join fetch a.candidate c
+    join fetch c.user cu
+    join fetch a.jobPost jp
+    join fetch jp.employer e
+    where jp.id = :jobPostId
+""")
+    List<Application> findByJobPostIdWithDetails(@Param("jobPostId") Long jobPostId);
+    @Query("""
+    select a
+    from Application a
+    join fetch a.candidate c
+    join fetch c.user cu
+    join fetch a.jobPost jp
+    join fetch jp.employer e
+    where a.id = :applicationId
+""")
+    Optional<Application> findByIdWithDetails(@Param("applicationId") Long applicationId);
 }

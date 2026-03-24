@@ -59,7 +59,6 @@ public class ApplicationServiceImpl implements ApplicationService {
             throw new BadRequestException("This job is not accepting applications");
         }
 
-        // BR7: Prevent duplicate applications
         if (applicationRepository.existsByCandidateIdAndJobPostId(candidate.getId(), jobPost.getId())) {
             throw new DuplicateResourceException("You have already applied for this job");
         }
@@ -68,13 +67,12 @@ public class ApplicationServiceImpl implements ApplicationService {
                 .candidate(candidate)
                 .jobPost(jobPost)
                 .status(ApplicationStatus.SUBMITTED)
-                .cvUrlAtTime(request.getCvUrlAtTime()) // BR: Snapshot CV URL
+                .cvUrlAtTime(request.getCvUrlAtTime())
                 .coverLetter(request.getCoverLetter())
                 .build();
 
         application = applicationRepository.save(application);
 
-        // Create initial history entry
         ApplicationHistory history = ApplicationHistory.builder()
                 .application(application)
                 .changedBy(candidate.getUser())
@@ -84,7 +82,6 @@ public class ApplicationServiceImpl implements ApplicationService {
                 .build();
         applicationHistoryRepository.save(history);
 
-        // Notify employer
         notificationService.createNotification(
                 jobPost.getEmployer().getUser(),
                 "New Application Received",
@@ -105,7 +102,6 @@ public class ApplicationServiceImpl implements ApplicationService {
         Application application = applicationRepository.findById(applicationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Application", "id", applicationId));
 
-        // Verify employer owns this job
         if (!application.getJobPost().getEmployer().getId().equals(employer.getId())) {
             throw new UnauthorizedException("You don't have permission to update this application");
         }
@@ -116,7 +112,6 @@ public class ApplicationServiceImpl implements ApplicationService {
         application.setStatus(newStatus);
         application = applicationRepository.save(application);
 
-        // Auto-insert ApplicationHistory on every status change
         User changedBy = userRepository.findById(employerUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", employerUserId));
 
@@ -129,7 +124,6 @@ public class ApplicationServiceImpl implements ApplicationService {
                 .build();
         applicationHistoryRepository.save(history);
 
-        // Notify candidate
         notificationService.createNotification(
                 application.getCandidate().getUser(),
                 "Application Status Updated",
@@ -142,6 +136,7 @@ public class ApplicationServiceImpl implements ApplicationService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public ApplicationResponse getApplicationById(Long applicationId) {
         Application application = applicationRepository.findById(applicationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Application", "id", applicationId));
@@ -149,6 +144,7 @@ public class ApplicationServiceImpl implements ApplicationService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<ApplicationResponse> getApplicationsByCandidate(Long candidateUserId) {
         Candidate candidate = candidateRepository.findByUserId(candidateUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("Candidate not found for user: " + candidateUserId));
@@ -158,23 +154,29 @@ public class ApplicationServiceImpl implements ApplicationService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<ApplicationResponse> getApplicationsByJobPost(Long employerUserId, Long jobPostId) {
         Employer employer = employerRepository.findByUserId(employerUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("Employer not found for user: " + employerUserId));
+
         JobPost jobPost = jobPostRepository.findById(jobPostId)
                 .orElseThrow(() -> new ResourceNotFoundException("JobPost", "id", jobPostId));
+
         if (!jobPost.getEmployer().getId().equals(employer.getId())) {
             throw new UnauthorizedException("You don't have permission to view these applications");
         }
+
         return applicationRepository.findByJobPostId(jobPostId).stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<ApplicationResponse> getApplicationsByEmployer(Long employerUserId) {
         Employer employer = employerRepository.findByUserId(employerUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("Employer not found for user: " + employerUserId));
+
         return applicationRepository.findByEmployerId(employer.getId()).stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
@@ -185,11 +187,14 @@ public class ApplicationServiceImpl implements ApplicationService {
     public void withdrawApplication(Long candidateUserId, Long applicationId) {
         Candidate candidate = candidateRepository.findByUserId(candidateUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("Candidate not found for user: " + candidateUserId));
+
         Application application = applicationRepository.findById(applicationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Application", "id", applicationId));
+
         if (!application.getCandidate().getId().equals(candidate.getId())) {
             throw new UnauthorizedException("You don't have permission to withdraw this application");
         }
+
         if (application.getStatus() == ApplicationStatus.OFFERED || application.getStatus() == ApplicationStatus.REJECTED) {
             throw new BadRequestException("Cannot withdraw application in current status");
         }
