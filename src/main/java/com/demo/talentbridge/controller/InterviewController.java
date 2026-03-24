@@ -6,6 +6,7 @@ import com.demo.talentbridge.dto.response.InterviewResponse;
 import com.demo.talentbridge.entity.User;
 import com.demo.talentbridge.enums.InterviewStatus;
 import com.demo.talentbridge.service.InterviewService;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -15,6 +16,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/interviews")
+@SecurityRequirement(name = "bearerAuth")
 public class InterviewController {
 
     @Autowired
