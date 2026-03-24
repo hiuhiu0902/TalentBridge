@@ -15,9 +15,10 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/connections")
 @SecurityRequirement(name = "bearerAuth")
-
 public class ConnectionController {
-    @Autowired private FollowService followService;
+
+    @Autowired
+    private FollowService followService;
 
     @PostMapping("/{userId}/follow")
     public ResponseEntity<ApiResponse<FollowResponse>> follow(
@@ -37,9 +38,19 @@ public class ConnectionController {
         return ResponseEntity.ok(ApiResponse.success(followService.getFollowers(userId)));
     }
 
+    @GetMapping("/{userId}/followers/count")
+    public ResponseEntity<ApiResponse<Long>> getFollowerCount(@PathVariable Long userId) {
+        return ResponseEntity.ok(ApiResponse.success(followService.getFollowerCount(userId)));
+    }
+
     @GetMapping("/{userId}/following")
     public ResponseEntity<ApiResponse<List<FollowResponse>>> getFollowing(@PathVariable Long userId) {
         return ResponseEntity.ok(ApiResponse.success(followService.getFollowing(userId)));
+    }
+
+    @GetMapping("/{userId}/following/count")
+    public ResponseEntity<ApiResponse<Long>> getFollowingCount(@PathVariable Long userId) {
+        return ResponseEntity.ok(ApiResponse.success(followService.getFollowingCount(userId)));
     }
 
     @GetMapping("/{userId}/is-following")

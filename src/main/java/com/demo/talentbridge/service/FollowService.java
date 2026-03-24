@@ -11,4 +11,5 @@ public interface FollowService {
     List<FollowResponse> getFollowing(Long userId);
     boolean isFollowing(Long followerUserId, Long followedUserId);
     long getFollowerCount(Long userId);
+    long getFollowingCount(Long userId);
 }

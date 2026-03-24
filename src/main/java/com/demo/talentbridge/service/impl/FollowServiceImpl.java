@@ -45,6 +45,7 @@ public class FollowServiceImpl implements FollowService {
                 .follower(follower)
                 .followed(followed)
                 .build();
+
         connection = followConnectionRepository.save(connection);
         return mapToResponse(connection);
     }
@@ -59,27 +60,47 @@ public class FollowServiceImpl implements FollowService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<FollowResponse> getFollowers(Long userId) {
-        return followConnectionRepository.findByFollowedId(userId).stream()
+        validateUserExists(userId);
+        return followConnectionRepository.findByFollowedIdOrderByFollowedAtDesc(userId).stream()
                 .map(this::mapToResponse)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<FollowResponse> getFollowing(Long userId) {
-        return followConnectionRepository.findByFollowerId(userId).stream()
+        validateUserExists(userId);
+        return followConnectionRepository.findByFollowerIdOrderByFollowedAtDesc(userId).stream()
                 .map(this::mapToResponse)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     @Override
+    @Transactional(readOnly = true)
     public boolean isFollowing(Long followerUserId, Long followedUserId) {
         return followConnectionRepository.existsByFollowerIdAndFollowedId(followerUserId, followedUserId);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public long getFollowerCount(Long userId) {
+        validateUserExists(userId);
         return followConnectionRepository.countByFollowedId(userId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long getFollowingCount(Long userId) {
+        validateUserExists(userId);
+        return followConnectionRepository.countByFollowerId(userId);
+    }
+
+    private void validateUserExists(Long userId) {
+        if (!userRepository.existsById(userId)) {
+            throw new ResourceNotFoundException("User", "id", userId);
+        }
     }
 
     private FollowResponse mapToResponse(FollowConnection fc) {
@@ -87,10 +108,10 @@ public class FollowServiceImpl implements FollowService {
                 .id(fc.getId())
                 .followerId(fc.getFollower().getId())
                 .followerUsername(fc.getFollower().getUsername())
-                .followerAvatarUrl((fc.getFollower().getAvatarUrl()))
+                .followerAvatarUrl(fc.getFollower().getAvatarUrl())
                 .followedId(fc.getFollowed().getId())
                 .followedUsername(fc.getFollowed().getUsername())
-                .followedAvatarUrl((fc.getFollowed().getAvatarUrl()))
+                .followedAvatarUrl(fc.getFollowed().getAvatarUrl())
                 .followedAt(fc.getFollowedAt())
                 .build();
     }
