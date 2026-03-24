@@ -26,8 +26,7 @@ public class JobPostRequest {
 
     @Size(max = 50)
     private String jobType;
-
-    @Size(max = 50)
+    
     private ExperienceLevel experienceLevel;
 
     private Long categoryId;
